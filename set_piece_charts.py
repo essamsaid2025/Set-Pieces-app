@@ -1,15 +1,16 @@
 import io
 import os
 import tempfile
-from typing import Dict, List
+from typing import Dict, List, Optional
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 from mplsoccer import Pitch
 
 from data_utils import bool01
-from ui_theme import THEMES
+from ui_theme import THEMES, build_chart_style
 
 
 CHART_REQUIREMENTS: Dict[str, List[str]] = {
@@ -27,18 +28,31 @@ CHART_REQUIREMENTS: Dict[str, List[str]] = {
 }
 
 
-def make_pitch(theme_name="The Athletic Dark"):
-    theme = THEMES[theme_name]
-    stripe = True if theme.get("pitch_stripe") else False
+def resolve_style(theme_name: str, style_overrides: Optional[dict] = None) -> dict:
+    return build_chart_style(theme_name, style_overrides or {})
+
+
+def apply_global_rcparams(style: dict):
+    mpl.rcParams["font.family"] = style["font_family"]
+    mpl.rcParams["axes.titlesize"] = style["title_size"]
+    mpl.rcParams["axes.labelsize"] = style["label_size"]
+    mpl.rcParams["xtick.labelsize"] = style["tick_size"]
+    mpl.rcParams["ytick.labelsize"] = style["tick_size"]
+    mpl.rcParams["legend.fontsize"] = style["legend_size"]
+
+
+def make_pitch(style: dict):
+    stripe = True if style.get("pitch_stripe") else False
     return Pitch(
         pitch_type="custom",
         pitch_length=100,
         pitch_width=64,
         line_zorder=2,
-        pitch_color=theme["pitch"],
-        line_color=theme["pitch_lines"],
+        linewidth=style["line_width"],
+        pitch_color=style["pitch"],
+        line_color=style["pitch_lines"],
         stripe=stripe,
-        stripe_color=theme.get("pitch_stripe"),
+        stripe_color=style.get("pitch_stripe"),
     )
 
 
@@ -54,19 +68,66 @@ def apply_flip_y(df: pd.DataFrame, flip_y: bool = False) -> pd.DataFrame:
     return out
 
 
-def themed_bar(ax, theme):
-    ax.set_facecolor(theme["panel"])
+def themed_bar(ax, style: dict):
+    ax.set_facecolor(style["panel"])
     for spine in ax.spines.values():
-        spine.set_color(theme["lines"])
-    ax.tick_params(colors=theme["muted"])
-    ax.yaxis.label.set_color(theme["muted"])
-    ax.xaxis.label.set_color(theme["muted"])
-    ax.title.set_color(theme["text"])
+        spine.set_color(style["lines"])
+        spine.set_linewidth(1.0)
+
+    ax.tick_params(
+        colors=style["muted"],
+        labelsize=style["tick_size"],
+    )
+
+    ax.yaxis.label.set_color(style["muted"])
+    ax.xaxis.label.set_color(style["muted"])
+    ax.title.set_color(style["text"])
+
+    if style.get("show_grid", True):
+        ax.grid(axis="y", alpha=style["grid_alpha"], color=style["lines"], linestyle="--", linewidth=0.8)
+        ax.set_axisbelow(True)
 
 
-def fig_to_png_bytes(fig):
+def style_pitch_axes(ax, style: dict):
+    ax.set_facecolor(style["pitch"])
+    ax.set_xlim(-style["pitch_pad_x"], 100 + style["pitch_pad_x"])
+    ax.set_ylim(-style["pitch_pad_y"], 64 + style["pitch_pad_y"])
+
+    if not style.get("show_ticks", True):
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+
+def set_chart_title(ax, title: str, style: dict):
+    if style.get("show_title", True):
+        ax.set_title(
+            title,
+            color=style["text"],
+            fontsize=style["title_size"],
+            fontweight=style["title_weight"],
+            pad=12,
+        )
+
+
+def style_legend(leg, style: dict):
+    if leg is None:
+        return
+    frame = leg.get_frame()
+    if frame is not None:
+        frame.set_facecolor(style["panel"])
+        frame.set_edgecolor(style["lines"])
+        frame.set_alpha(0.95)
+
+    for txt in leg.get_texts():
+        txt.set_color(style["text"])
+
+
+def fig_to_png_bytes(fig, dpi: int = 260):
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=260, bbox_inches="tight", pad_inches=0.25)
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", pad_inches=0.25)
     buf.seek(0)
     return buf.getvalue()
 
@@ -133,190 +194,226 @@ def get_second_ball_win_series(df: pd.DataFrame) -> pd.Series:
     return spt.isin(["second_ball_win", "second ball win", "won_second_ball"]).astype(int)
 
 
-def chart_delivery_heatmap(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    pitch = make_pitch(theme_name)
+def _base_figure(style: dict, figsize=(8, 6)):
+    apply_global_rcparams(style)
+    fig, ax = plt.subplots(figsize=figsize)
+    fig.patch.set_facecolor(style["bg"])
+    ax.set_facecolor(style["panel"])
+    return fig, ax
+
+
+def chart_delivery_heatmap(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    pitch = make_pitch(style)
     dff = apply_flip_y(df, flip_y)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    fig.patch.set_facecolor(theme["bg"])
+    fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
-    ax.set_facecolor(theme["pitch"])
-    ax.set_xlim(-2, 102)
-    ax.set_ylim(-2, 66)
+    style_pitch_axes(ax, style)
 
     dd = dff.dropna(subset=["x2", "y2"]).copy()
     if len(dd):
         try:
-            pitch.kdeplot(dd["x2"], dd["y2"], ax=ax, fill=True, levels=50, alpha=0.75)
+            pitch.kdeplot(
+                dd["x2"], dd["y2"],
+                ax=ax,
+                fill=True,
+                levels=50,
+                alpha=style["kde_alpha"],
+                cmap="Blues",
+            )
         except Exception:
-            pitch.scatter(dd["x2"], dd["y2"], ax=ax, s=55, color="#38bdf8", alpha=0.75)
+            pitch.scatter(
+                dd["x2"], dd["y2"],
+                ax=ax,
+                s=style["marker_size"] * 0.65,
+                color=style["accent"],
+                alpha=style["alpha"],
+            )
 
-    ax.set_title("Delivery End Location Heatmap", color=theme["text"], fontsize=16, weight="bold")
+    set_chart_title(ax, "Delivery End Location Heatmap", style)
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_delivery_end_scatter(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    pitch = make_pitch(theme_name)
+def chart_delivery_end_scatter(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    pitch = make_pitch(style)
     dff = apply_flip_y(df, flip_y)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    fig.patch.set_facecolor(theme["bg"])
+    fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
-    ax.set_facecolor(theme["pitch"])
-    ax.set_xlim(-2, 102)
-    ax.set_ylim(-2, 66)
+    style_pitch_axes(ax, style)
 
     dd = dff.dropna(subset=["x2", "y2"]).copy()
 
     if "delivery_type" in dd.columns:
         color_map = {
-            "inswing": "#00C2FF",
-            "outswing": "#FFD400",
-            "straight": "#FF8A00",
+            "inswing": style["accent"],
+            "outswing": style["warning"],
+            "straight": style["accent_2"],
+            "driven": style["success"],
+            "short": style["danger"],
         }
         for dtype, grp in dd.groupby("delivery_type"):
             pitch.scatter(
                 grp["x2"],
                 grp["y2"],
                 ax=ax,
-                s=85,
-                color=color_map.get(str(dtype).lower(), "#E6E6E6"),
-                edgecolors="white",
-                linewidth=1.2,
+                s=style["marker_size"],
+                color=color_map.get(str(dtype).lower(), style["text"]),
+                edgecolors=style["pitch_lines"],
+                linewidth=style["marker_edge_width"],
                 label=str(dtype).title(),
-                alpha=0.9,
+                alpha=style["alpha"],
             )
-        leg = ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=3)
-        if leg:
-            for t in leg.get_texts():
-                t.set_color(theme["text"])
+
+        if style.get("show_legend", True):
+            leg = ax.legend(frameon=True, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=3)
+            style_legend(leg, style)
     else:
         pitch.scatter(
             dd["x2"], dd["y2"],
-            ax=ax, s=85, color="#38bdf8", edgecolors="white", linewidth=1.2, alpha=0.9
+            ax=ax,
+            s=style["marker_size"],
+            color=style["accent"],
+            edgecolors=style["pitch_lines"],
+            linewidth=style["marker_edge_width"],
+            alpha=style["alpha"],
         )
 
-    ax.set_title("Delivery End Scatter", color=theme["text"], fontsize=16, weight="bold")
+    set_chart_title(ax, "Delivery End Scatter", style)
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_outcome_distribution(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    fig, ax = plt.subplots(figsize=(7.4, 4.6))
-    fig.patch.set_facecolor(theme["bg"])
+def chart_outcome_distribution(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    fig, ax = _base_figure(style, figsize=(7.4, 4.6))
 
     counts = get_set_piece_series(df).astype(str).str.lower().value_counts()
     colors = []
     for x in counts.index:
         if x in ["successful", "corner", "free_kick"]:
-            colors.append("#00FF6A")
+            colors.append(style["success"])
         elif x in ["unsuccessful", "failed", "loss"]:
-            colors.append("#FF4D4D")
+            colors.append(style["danger"])
         else:
-            colors.append("#00C2FF")
+            colors.append(style["accent"])
 
-    ax.bar(counts.index, counts.values, color=colors)
-    themed_bar(ax, theme)
-    ax.set_title("Set Piece Type / Outcome Distribution", fontsize=16, weight="bold")
+    ax.bar(counts.index, counts.values, color=colors, edgecolor=style["lines"], linewidth=0.8)
+    themed_bar(ax, style)
+    set_chart_title(ax, "Set Piece Type / Outcome Distribution", style)
     ax.set_ylabel("Count")
     ax.tick_params(axis="x", rotation=25)
+
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_target_zone_breakdown(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    fig, ax = plt.subplots(figsize=(7.4, 4.6))
-    fig.patch.set_facecolor(theme["bg"])
+def chart_target_zone_breakdown(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    fig, ax = _base_figure(style, figsize=(7.4, 4.6))
 
     counts = get_target_zone_series(df).value_counts()
-    ax.bar(counts.index, counts.values, color="#38bdf8")
-    themed_bar(ax, theme)
-    ax.set_title("Target Zone Breakdown", fontsize=16, weight="bold")
+    ax.bar(counts.index, counts.values, color=style["accent"], edgecolor=style["lines"], linewidth=0.8)
+    themed_bar(ax, style)
+    set_chart_title(ax, "Target Zone Breakdown", style)
     ax.set_ylabel("Count")
     ax.tick_params(axis="x", rotation=25)
+
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_first_contact_win_by_zone(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    fig, ax = plt.subplots(figsize=(7.6, 4.8))
-    fig.patch.set_facecolor(theme["bg"])
+def chart_first_contact_win_by_zone(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    fig, ax = _base_figure(style, figsize=(7.6, 4.8))
 
     dd = df.copy()
     dd["zone_calc"] = get_target_zone_series(dd)
     dd["fc_win_calc"] = get_first_contact_win_series(dd)
 
     summary = dd.groupby("zone_calc", dropna=False)["fc_win_calc"].mean().sort_values(ascending=False) * 100
-    ax.bar(summary.index.astype(str), summary.values, color="#00C2FF")
-    themed_bar(ax, theme)
-    ax.set_title("First Contact Win % By Zone", fontsize=16, weight="bold")
+    ax.bar(summary.index.astype(str), summary.values, color=style["accent"], edgecolor=style["lines"], linewidth=0.8)
+    themed_bar(ax, style)
+    set_chart_title(ax, "First Contact Win % By Zone", style)
     ax.set_ylabel("Win %")
     ax.tick_params(axis="x", rotation=25)
+
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_routine_breakdown(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    fig, ax = plt.subplots(figsize=(7.6, 4.8))
-    fig.patch.set_facecolor(theme["bg"])
+def chart_routine_breakdown(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    fig, ax = _base_figure(style, figsize=(7.6, 4.8))
 
     if "routine_type" in df.columns and df["routine_type"].notna().any():
         counts = df["routine_type"].fillna("unclassified").value_counts().head(10)
     else:
         counts = get_target_zone_series(df).value_counts().head(10)
 
-    ax.barh(counts.index[::-1], counts.values[::-1], color="#FFD400")
-    themed_bar(ax, theme)
-    ax.set_title("Routine Breakdown", fontsize=16, weight="bold")
+    ax.barh(
+        counts.index[::-1],
+        counts.values[::-1],
+        color=style["warning"],
+        edgecolor=style["lines"],
+        linewidth=0.8,
+    )
+    themed_bar(ax, style)
+    set_chart_title(ax, "Routine Breakdown", style)
     ax.set_xlabel("Count")
+
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_shot_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    pitch = make_pitch(theme_name)
+def chart_shot_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    pitch = make_pitch(style)
     dff = apply_flip_y(df, flip_y)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    fig.patch.set_facecolor(theme["bg"])
+    fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
-    ax.set_facecolor(theme["pitch"])
-    ax.set_xlim(-2, 102)
-    ax.set_ylim(-2, 66)
+    style_pitch_axes(ax, style)
 
     dd = dff.dropna(subset=["x", "y"]).copy()
 
-    size = 160
+    size = style["marker_size"] * 1.6
     if "xg" in dd.columns:
         xg = pd.to_numeric(dd["xg"], errors="coerce").fillna(0)
-        size = 80 + xg * 450
+        size = 35 + xg * 500
 
     pitch.scatter(
         dd["x"], dd["y"],
         ax=ax,
         s=size,
-        color="#00FF6A",
-        edgecolors="white",
-        linewidth=1.4,
-        alpha=0.92,
+        color=style["success"],
+        edgecolors=style["pitch_lines"],
+        linewidth=style["marker_edge_width"],
+        alpha=style["alpha"],
     )
-    ax.set_title("Set Piece Shot / Event Map", color=theme["text"], fontsize=16, weight="bold")
+    set_chart_title(ax, "Set Piece Shot / Event Map", style)
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_second_ball_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    pitch = make_pitch(theme_name)
+def chart_second_ball_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    pitch = make_pitch(style)
     dff = apply_flip_y(df, flip_y)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    fig.patch.set_facecolor(theme["bg"])
+    fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
-    ax.set_facecolor(theme["pitch"])
-    ax.set_xlim(-2, 102)
-    ax.set_ylim(-2, 66)
+    style_pitch_axes(ax, style)
 
     dd = dff.dropna(subset=["x", "y"]).copy()
     dd["second_ball_calc"] = get_second_ball_win_series(dd)
@@ -327,51 +424,76 @@ def chart_second_ball_map(df: pd.DataFrame, theme_name: str, flip_y: bool = Fals
     if len(win):
         pitch.scatter(
             win["x"], win["y"],
-            ax=ax, s=120, color="#00FF6A", edgecolors="white", linewidth=1.3, label="Won"
+            ax=ax,
+            s=style["marker_size"] * 1.25,
+            color=style["success"],
+            edgecolors=style["pitch_lines"],
+            linewidth=style["marker_edge_width"],
+            label="Won",
+            alpha=style["alpha"],
         )
     if len(lose):
         pitch.scatter(
             lose["x"], lose["y"],
-            ax=ax, s=120, facecolors="none", edgecolors="#FF4D4D", linewidth=2.0, label="Lost"
+            ax=ax,
+            s=style["marker_size"] * 1.25,
+            facecolors="none",
+            edgecolors=style["danger"],
+            linewidth=style["line_width"] + 0.6,
+            label="Lost",
+            alpha=style["alpha"],
         )
 
-    if len(win) or len(lose):
-        leg = ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=2)
-        if leg:
-            for t in leg.get_texts():
-                t.set_color(theme["text"])
+    if (len(win) or len(lose)) and style.get("show_legend", True):
+        leg = ax.legend(frameon=True, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=2)
+        style_legend(leg, style)
 
-    ax.set_title("Second Ball Map", color=theme["text"], fontsize=16, weight="bold")
+    set_chart_title(ax, "Second Ball Map", style)
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_defensive_vulnerability_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    pitch = make_pitch(theme_name)
+def chart_defensive_vulnerability_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    pitch = make_pitch(style)
     dff = apply_flip_y(df, flip_y)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    fig.patch.set_facecolor(theme["bg"])
+    fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
-    ax.set_facecolor(theme["pitch"])
-    ax.set_xlim(-2, 102)
-    ax.set_ylim(-2, 66)
+    style_pitch_axes(ax, style)
 
     dd = dff.dropna(subset=["x", "y"]).copy()
     if len(dd):
         try:
-            pitch.kdeplot(dd["x"], dd["y"], ax=ax, fill=True, levels=40, alpha=0.72)
+            pitch.kdeplot(
+                dd["x"], dd["y"],
+                ax=ax,
+                fill=True,
+                levels=40,
+                alpha=style["kde_alpha"],
+                cmap="Reds",
+            )
         except Exception:
-            pitch.scatter(dd["x"], dd["y"], ax=ax, s=75, color="#FF4D4D", edgecolors="white", linewidth=1.1)
+            pitch.scatter(
+                dd["x"], dd["y"],
+                ax=ax,
+                s=style["marker_size"] * 0.8,
+                color=style["danger"],
+                edgecolors=style["pitch_lines"],
+                linewidth=style["marker_edge_width"],
+                alpha=style["alpha"],
+            )
 
-    ax.set_title("Defensive Vulnerability Map", color=theme["text"], fontsize=16, weight="bold")
+    set_chart_title(ax, "Defensive Vulnerability Map", style)
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_taker_profile(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    fig, ax = plt.subplots(figsize=(7.8, 4.8))
-    fig.patch.set_facecolor(theme["bg"])
+def chart_taker_profile(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    fig, ax = _base_figure(style, figsize=(7.8, 4.8))
 
     if "taker" in df.columns and "sequence_id" in df.columns:
         seq_counts = df.groupby("taker")["sequence_id"].nunique().sort_values(ascending=False).head(10)
@@ -380,17 +502,25 @@ def chart_taker_profile(df: pd.DataFrame, theme_name: str, flip_y: bool = False)
     else:
         seq_counts = get_set_piece_series(df).value_counts().head(10)
 
-    ax.barh(seq_counts.index[::-1], seq_counts.values[::-1], color="#38bdf8")
-    themed_bar(ax, theme)
-    ax.set_title("Taker / Event Profile", fontsize=16, weight="bold")
+    ax.barh(
+        seq_counts.index[::-1],
+        seq_counts.values[::-1],
+        color=style["accent"],
+        edgecolor=style["lines"],
+        linewidth=0.8,
+    )
+    themed_bar(ax, style)
+    set_chart_title(ax, "Taker / Event Profile", style)
     ax.set_xlabel("Count")
+
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
-def chart_structure_zone_averages(df: pd.DataFrame, theme_name: str, flip_y: bool = False):
-    theme = THEMES[theme_name]
-    fig, ax = plt.subplots(figsize=(7.6, 4.8))
-    fig.patch.set_facecolor(theme["bg"])
+def chart_structure_zone_averages(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    fig, ax = _base_figure(style, figsize=(7.6, 4.8))
 
     cols = ["players_near_post", "players_far_post", "players_6yard", "players_penalty"]
     existing = [c for c in cols if c in df.columns]
@@ -410,12 +540,17 @@ def chart_structure_zone_averages(df: pd.DataFrame, theme_name: str, flip_y: boo
         labels = zone_counts.index.tolist()
         values = zone_counts.values
 
-    colors = ["#00C2FF", "#FFD400", "#00FF6A", "#A78BFA"][:len(values)]
-    ax.bar(labels, values, color=colors)
-    themed_bar(ax, theme)
-    ax.set_title("Structure / Zone Summary", fontsize=16, weight="bold")
+    color_cycle = [style["accent"], style["warning"], style["success"], style["accent_2"]]
+    colors = color_cycle[:len(values)]
+
+    ax.bar(labels, values, color=colors, edgecolor=style["lines"], linewidth=0.8)
+    themed_bar(ax, style)
+    set_chart_title(ax, "Structure / Zone Summary", style)
     ax.set_ylabel("Value")
     ax.tick_params(axis="x", rotation=15)
+
+    if style["tight_layout"]:
+        fig.tight_layout()
     return fig
 
 
