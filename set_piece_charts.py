@@ -2,26 +2,35 @@ import io
 import math
 import os
 import tempfile
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.patches import Arc, Rectangle
+from matplotlib.lines import Line2D
+from matplotlib.patches import Arc, FancyArrowPatch, Rectangle
 
 from data_utils import bool01
 from ui_theme import build_chart_style
 
 # =========================================================
-# OPTIONAL MPLSOCCER IMPORT WITH SAFE FALLBACK
+# OPTIONAL IMPORTS (SAFE FALLBACKS)
 # =========================================================
 try:
     from mplsoccer import Pitch as MplsoccerPitch
 except Exception:
     MplsoccerPitch = None
 
+try:
+    from sklearn.cluster import KMeans
+except Exception:
+    KMeans = None
 
+
+# =========================================================
+# SIMPLE PITCH FALLBACK
+# =========================================================
 class SimplePitch:
     def __init__(
         self,
@@ -62,7 +71,6 @@ class SimplePitch:
                         )
                     )
 
-        # Outer boundaries
         ax.add_patch(
             Rectangle(
                 (0, 0),
@@ -75,7 +83,6 @@ class SimplePitch:
             )
         )
 
-        # Halfway line
         ax.plot(
             [self.pitch_length / 2, self.pitch_length / 2],
             [0, self.pitch_width],
@@ -84,21 +91,21 @@ class SimplePitch:
             zorder=self.line_zorder,
         )
 
-        # Center circle
         center_x = self.pitch_length / 2
         center_y = self.pitch_width / 2
-        center_circle = plt.Circle(
-            (center_x, center_y),
-            9.15,
-            fill=False,
-            color=self.line_color,
-            lw=self.linewidth,
-            zorder=self.line_zorder,
-        )
-        ax.add_patch(center_circle)
 
-        # Penalty areas
-        # Left
+        ax.add_patch(
+            plt.Circle(
+                (center_x, center_y),
+                9.15,
+                fill=False,
+                color=self.line_color,
+                lw=self.linewidth,
+                zorder=self.line_zorder,
+            )
+        )
+
+        # Left boxes
         ax.add_patch(
             Rectangle(
                 (0, (self.pitch_width - 40.32) / 2),
@@ -122,7 +129,7 @@ class SimplePitch:
             )
         )
 
-        # Right
+        # Right boxes
         ax.add_patch(
             Rectangle(
                 (self.pitch_length - 16.5, (self.pitch_width - 40.32) / 2),
@@ -146,10 +153,8 @@ class SimplePitch:
             )
         )
 
-        # Penalty spots
         ax.scatter([11, self.pitch_length - 11], [center_y, center_y], c=self.line_color, s=8, zorder=self.line_zorder)
 
-        # Penalty arcs
         ax.add_patch(
             Arc(
                 (11, center_y),
@@ -177,7 +182,6 @@ class SimplePitch:
             )
         )
 
-        # Goals
         goal_depth = 1.5
         goal_width = 7.32
         ax.add_patch(
@@ -211,23 +215,27 @@ class SimplePitch:
         return ax.scatter(x, y, **kwargs)
 
     def kdeplot(self, x, y, ax, fill=True, levels=40, alpha=0.72, cmap="Blues"):
-        # Simple fallback using hist2d
-        hb = ax.hist2d(
+        return ax.hist2d(
             x,
             y,
-            bins=[20, 14],
+            bins=[22, 14],
             range=[[0, self.pitch_length], [0, self.pitch_width]],
             cmap=cmap,
             alpha=alpha,
         )
-        return hb
 
 
+# =========================================================
+# CHART CONFIG
+# =========================================================
 CHART_REQUIREMENTS: Dict[str, List[str]] = {
     "Delivery Start Map": ["x", "y"],
     "Delivery Heatmap": ["x2", "y2"],
     "Delivery End Scatter": ["x2", "y2"],
     "Delivery Trajectories": ["x", "y", "x2", "y2"],
+    "Average Delivery Path": ["x", "y", "x2", "y2"],
+    "Heat + Trajectories": ["x", "y", "x2", "y2"],
+    "Trajectory Clusters": ["x", "y", "x2", "y2"],
     "Delivery Length Distribution": ["x", "y", "x2", "y2"],
     "Delivery Direction Map": ["x", "y", "x2", "y2"],
     "Outcome Distribution": ["set_piece_type"],
@@ -242,6 +250,9 @@ CHART_REQUIREMENTS: Dict[str, List[str]] = {
 }
 
 
+# =========================================================
+# STYLE + RC
+# =========================================================
 def resolve_style(theme_name: str, style_overrides: Optional[dict] = None) -> dict:
     return build_chart_style(theme_name, style_overrides or {})
 
@@ -287,9 +298,11 @@ def apply_flip_y(df: pd.DataFrame, flip_y: bool = False) -> pd.DataFrame:
     out = df.copy()
     if not flip_y:
         return out
+
     for c in ["y", "y2", "y3"]:
         if c in out.columns:
             out[c] = 64 - pd.to_numeric(out[c], errors="coerce")
+
     return out
 
 
@@ -363,6 +376,17 @@ def save_report_pdf(figures: List, filename="set_piece_report.pdf"):
         return f.read()
 
 
+def _base_figure(style: dict, figsize=(8, 6)):
+    apply_global_rcparams(style)
+    fig, ax = plt.subplots(figsize=figsize)
+    fig.patch.set_facecolor(style["bg"])
+    ax.set_facecolor(style["panel"])
+    return fig, ax
+
+
+# =========================================================
+# DATA HELPERS
+# =========================================================
 def infer_zone_from_xy(x, y):
     try:
         x = float(x)
@@ -415,12 +439,46 @@ def get_second_ball_win_series(df: pd.DataFrame) -> pd.Series:
     return spt.isin(["second_ball_win", "second ball win", "won_second_ball"]).astype(int)
 
 
-def _base_figure(style: dict, figsize=(8, 6)):
-    apply_global_rcparams(style)
-    fig, ax = plt.subplots(figsize=figsize)
-    fig.patch.set_facecolor(style["bg"])
-    ax.set_facecolor(style["panel"])
-    return fig, ax
+def _clean_numeric(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
+    out = df.copy()
+    for c in cols:
+        if c in out.columns:
+            out[c] = pd.to_numeric(out[c], errors="coerce")
+    return out
+
+
+def _auto_scale_coordinates(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    لو y / y2 / y3 جاية 0-100 بدل 0-64 نعمل scaling تلقائي.
+    وكمان نعمل clip عشان مفيش نقطة تطلع برا الملعب.
+    """
+    out = df.copy()
+    out = _clean_numeric(out, ["x", "y", "x2", "y2", "x3", "y3"])
+
+    # scale Y if looks like 0-100 space
+    for yc in ["y", "y2", "y3"]:
+        if yc in out.columns and out[yc].notna().any():
+            max_y = out[yc].max()
+            if pd.notna(max_y) and max_y > 64.5:
+                out[yc] = out[yc] * 64.0 / 100.0
+
+    # optional scale X if somehow > 100 and close to 120-like providers
+    for xc in ["x", "x2", "x3"]:
+        if xc in out.columns and out[xc].notna().any():
+            max_x = out[xc].max()
+            if pd.notna(max_x) and max_x > 100.5 and max_x <= 121:
+                out[xc] = out[xc] * 100.0 / max_x
+
+    # clip to pitch bounds
+    for xc in ["x", "x2", "x3"]:
+        if xc in out.columns:
+            out[xc] = out[xc].clip(lower=0, upper=100)
+
+    for yc in ["y", "y2", "y3"]:
+        if yc in out.columns:
+            out[yc] = out[yc].clip(lower=0, upper=64)
+
+    return out
 
 
 def _get_delivery_color_map(style: dict):
@@ -433,18 +491,154 @@ def _get_delivery_color_map(style: dict):
     }
 
 
+def _corner_anchor(x: float, y: float) -> Tuple[float, float, str]:
+    """
+    Normalize start point to nearest logical corner if event starts near corners.
+    Returns x, y, side_label
+    """
+    if pd.isna(x) or pd.isna(y):
+        return x, y, "unknown"
+
+    side = "right" if x >= 50 else "left"
+    half = "top" if y <= 32 else "bottom"
+
+    # force clear corner starts to exact corners
+    if side == "right":
+        x = 100
+    else:
+        x = 0
+
+    y = 0 if half == "top" else 64
+    return x, y, f"{side}_{half}"
+
+
+def _curve_rad_for_delivery(dtype: str, corner_label: str) -> float:
+    """
+    rad positive / negative controls curve direction.
+    inswing = لجوه
+    outswing = لبرة
+    """
+    dtype = str(dtype).lower()
+
+    # right_top / right_bottom / left_top / left_bottom
+    if corner_label == "right_top":
+        if dtype == "inswing":
+            return -0.22
+        if dtype == "outswing":
+            return 0.22
+    elif corner_label == "right_bottom":
+        if dtype == "inswing":
+            return 0.22
+        if dtype == "outswing":
+            return -0.22
+    elif corner_label == "left_top":
+        if dtype == "inswing":
+            return 0.22
+        if dtype == "outswing":
+            return -0.22
+    elif corner_label == "left_bottom":
+        if dtype == "inswing":
+            return -0.22
+        if dtype == "outswing":
+            return 0.22
+
+    return 0.0
+
+
+def _prepare_delivery_df(df: pd.DataFrame, flip_y: bool = False) -> pd.DataFrame:
+    dff = apply_flip_y(df, flip_y)
+    dff = _auto_scale_coordinates(dff)
+
+    needed = [c for c in ["x", "y", "x2", "y2", "delivery_type"] if c in dff.columns]
+    dff = dff.copy()
+
+    if "x" in dff.columns and "y" in dff.columns:
+        corner_data = dff.apply(
+            lambda r: _corner_anchor(r.get("x"), r.get("y")),
+            axis=1,
+            result_type="expand",
+        )
+        dff["x_start_plot"] = corner_data[0]
+        dff["y_start_plot"] = corner_data[1]
+        dff["corner_label"] = corner_data[2]
+    else:
+        dff["x_start_plot"] = dff.get("x")
+        dff["y_start_plot"] = dff.get("y")
+        dff["corner_label"] = "unknown"
+
+    if "x2" in dff.columns:
+        dff["x2"] = dff["x2"].clip(0, 100)
+    if "y2" in dff.columns:
+        dff["y2"] = dff["y2"].clip(0, 64)
+
+    return dff
+
+
+def _draw_curved_arrow(
+    ax,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    color: str,
+    style: dict,
+    rad: float = 0.0,
+    linewidth_mult: float = 1.0,
+    alpha_mult: float = 1.0,
+):
+    arrow = FancyArrowPatch(
+        (x1, y1),
+        (x2, y2),
+        connectionstyle=f"arc3,rad={rad}",
+        arrowstyle="-|>",
+        mutation_scale=style["trajectory_headwidth"] * 4.0,
+        linewidth=style["trajectory_width"] * linewidth_mult,
+        color=color,
+        alpha=style["trajectory_alpha"] * alpha_mult,
+    )
+    ax.add_patch(arrow)
+
+
+def _safe_cluster_labels(dd: pd.DataFrame, n_clusters: int = 3) -> pd.Series:
+    features = dd[["x_start_plot", "y_start_plot", "x2", "y2"]].dropna().copy()
+    if len(features) < max(n_clusters, 3):
+        return pd.Series([0] * len(dd), index=dd.index)
+
+    if KMeans is not None:
+        try:
+            n = min(n_clusters, max(2, len(features)))
+            km = KMeans(n_clusters=n, random_state=42, n_init=10)
+            labels = km.fit_predict(features)
+            out = pd.Series(index=features.index, data=labels)
+            return out.reindex(dd.index).fillna(0).astype(int)
+        except Exception:
+            pass
+
+    # fallback بسيط بدون sklearn
+    bins_x = pd.qcut(features["x2"], q=min(3, len(features)), duplicates="drop", labels=False)
+    bins_y = pd.qcut(features["y2"], q=min(3, len(features)), duplicates="drop", labels=False)
+    labels = (bins_x.fillna(0).astype(int) * 10 + bins_y.fillna(0).astype(int))
+    out = pd.Series(index=features.index, data=labels)
+    return out.reindex(dd.index).fillna(0).astype(int)
+
+
+# =========================================================
+# CHARTS
+# =========================================================
 def chart_delivery_start_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
     style = resolve_style(theme_name, style_overrides)
     pitch = make_pitch(style)
-    dff = apply_flip_y(df, flip_y)
+    dff = _prepare_delivery_df(df, flip_y)
 
     fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
     style_pitch_axes(ax, style)
 
-    dd = dff.dropna(subset=["x", "y"]).copy()
+    dd = dff.dropna(subset=["x_start_plot", "y_start_plot"]).copy()
+
     pitch.scatter(
-        dd["x"], dd["y"],
+        dd["x_start_plot"],
+        dd["y_start_plot"],
         ax=ax,
         s=style["marker_size"],
         color=style["accent"],
@@ -462,7 +656,7 @@ def chart_delivery_start_map(df: pd.DataFrame, theme_name: str, flip_y: bool = F
 def chart_delivery_heatmap(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
     style = resolve_style(theme_name, style_overrides)
     pitch = make_pitch(style)
-    dff = apply_flip_y(df, flip_y)
+    dff = _prepare_delivery_df(df, flip_y)
 
     fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
@@ -497,7 +691,7 @@ def chart_delivery_heatmap(df: pd.DataFrame, theme_name: str, flip_y: bool = Fal
 def chart_delivery_end_scatter(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
     style = resolve_style(theme_name, style_overrides)
     pitch = make_pitch(style)
-    dff = apply_flip_y(df, flip_y)
+    dff = _prepare_delivery_df(df, flip_y)
 
     fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
@@ -542,60 +736,282 @@ def chart_delivery_end_scatter(df: pd.DataFrame, theme_name: str, flip_y: bool =
 def chart_delivery_trajectories(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
     style = resolve_style(theme_name, style_overrides)
     pitch = make_pitch(style)
-    dff = apply_flip_y(df, flip_y)
+    dff = _prepare_delivery_df(df, flip_y)
 
-    fig, ax = _base_figure(style, figsize=(8.2, 6.2))
+    fig, ax = _base_figure(style, figsize=(8.4, 6.4))
     pitch.draw(ax=ax)
     style_pitch_axes(ax, style)
 
-    dd = dff.dropna(subset=["x", "y", "x2", "y2"]).copy()
+    dd = dff.dropna(subset=["x_start_plot", "y_start_plot", "x2", "y2"]).copy()
+    color_map = _get_delivery_color_map(style)
 
     if "delivery_type" in dd.columns:
-        color_map = _get_delivery_color_map(style)
         for dtype, grp in dd.groupby("delivery_type"):
+            dtype_l = str(dtype).lower()
             for _, r in grp.iterrows():
-                ax.annotate(
-                    "",
-                    xy=(r["x2"], r["y2"]),
-                    xytext=(r["x"], r["y"]),
-                    arrowprops=dict(
-                        arrowstyle="-|>",
-                        color=color_map.get(str(dtype).lower(), style["accent"]),
-                        lw=style["trajectory_width"],
-                        alpha=style["trajectory_alpha"],
-                        shrinkA=0,
-                        shrinkB=0,
-                        mutation_scale=style["trajectory_headwidth"] * 2.5,
-                    ),
+                rad = _curve_rad_for_delivery(dtype_l, str(r.get("corner_label", "unknown")))
+                _draw_curved_arrow(
+                    ax=ax,
+                    x1=r["x_start_plot"],
+                    y1=r["y_start_plot"],
+                    x2=r["x2"],
+                    y2=r["y2"],
+                    color=color_map.get(dtype_l, style["accent"]),
+                    style=style,
+                    rad=rad,
                 )
+
         if style.get("show_legend", True):
             handles = []
             labels = []
             for k, v in color_map.items():
                 if (dd["delivery_type"].astype(str).str.lower() == k).any():
-                    handles.append(plt.Line2D([0], [0], color=v, lw=style["trajectory_width"] + 0.3))
+                    handles.append(Line2D([0], [0], color=v, lw=style["trajectory_width"] + 1))
                     labels.append(k.title())
             if handles:
                 leg = ax.legend(handles, labels, frameon=True, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=3)
                 style_legend(leg, style)
     else:
         for _, r in dd.iterrows():
-            ax.annotate(
-                "",
-                xy=(r["x2"], r["y2"]),
-                xytext=(r["x"], r["y"]),
-                arrowprops=dict(
-                    arrowstyle="-|>",
-                    color=style["accent"],
-                    lw=style["trajectory_width"],
-                    alpha=style["trajectory_alpha"],
-                    shrinkA=0,
-                    shrinkB=0,
-                    mutation_scale=style["trajectory_headwidth"] * 2.5,
-                ),
+            _draw_curved_arrow(
+                ax=ax,
+                x1=r["x_start_plot"],
+                y1=r["y_start_plot"],
+                x2=r["x2"],
+                y2=r["y2"],
+                color=style["accent"],
+                style=style,
+                rad=0.0,
             )
 
     set_chart_title(ax, "Delivery Trajectories", style)
+    if style["tight_layout"]:
+        fig.tight_layout()
+    return fig
+
+
+def chart_average_delivery_path(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    pitch = make_pitch(style)
+    dff = _prepare_delivery_df(df, flip_y)
+
+    fig, ax = _base_figure(style, figsize=(8.2, 6.2))
+    pitch.draw(ax=ax)
+    style_pitch_axes(ax, style)
+
+    dd = dff.dropna(subset=["x_start_plot", "y_start_plot", "x2", "y2"]).copy()
+
+    if "delivery_type" in dd.columns and dd["delivery_type"].notna().any():
+        color_map = _get_delivery_color_map(style)
+        for dtype, grp in dd.groupby("delivery_type"):
+            if len(grp) == 0:
+                continue
+            avg_x1 = grp["x_start_plot"].mean()
+            avg_y1 = grp["y_start_plot"].mean()
+            avg_x2 = grp["x2"].mean()
+            avg_y2 = grp["y2"].mean()
+            rad = _curve_rad_for_delivery(str(dtype).lower(), str(grp["corner_label"].mode().iloc[0]) if grp["corner_label"].notna().any() else "unknown")
+
+            _draw_curved_arrow(
+                ax=ax,
+                x1=avg_x1,
+                y1=avg_y1,
+                x2=avg_x2,
+                y2=avg_y2,
+                color=color_map.get(str(dtype).lower(), style["accent"]),
+                style=style,
+                rad=rad,
+                linewidth_mult=2.2,
+                alpha_mult=1.15,
+            )
+
+            pitch.scatter([avg_x2], [avg_y2], ax=ax, s=style["marker_size"] * 1.2, color=color_map.get(str(dtype).lower(), style["accent"]), edgecolors=style["pitch_lines"], linewidth=1.2)
+
+        if style.get("show_legend", True):
+            handles = []
+            labels = []
+            for k, v in color_map.items():
+                if (dd["delivery_type"].astype(str).str.lower() == k).any():
+                    handles.append(Line2D([0], [0], color=v, lw=style["trajectory_width"] * 2))
+                    labels.append(f"{k.title()} Avg")
+            if handles:
+                leg = ax.legend(handles, labels, frameon=True, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=3)
+                style_legend(leg, style)
+    else:
+        avg_x1 = dd["x_start_plot"].mean()
+        avg_y1 = dd["y_start_plot"].mean()
+        avg_x2 = dd["x2"].mean()
+        avg_y2 = dd["y2"].mean()
+
+        _draw_curved_arrow(
+            ax=ax,
+            x1=avg_x1,
+            y1=avg_y1,
+            x2=avg_x2,
+            y2=avg_y2,
+            color=style["accent"],
+            style=style,
+            rad=0.0,
+            linewidth_mult=2.2,
+            alpha_mult=1.1,
+        )
+        pitch.scatter([avg_x2], [avg_y2], ax=ax, s=style["marker_size"] * 1.25, color=style["accent"], edgecolors=style["pitch_lines"], linewidth=1.2)
+
+    set_chart_title(ax, "Average Delivery Path", style)
+    if style["tight_layout"]:
+        fig.tight_layout()
+    return fig
+
+
+def chart_heat_plus_trajectories(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    pitch = make_pitch(style)
+    dff = _prepare_delivery_df(df, flip_y)
+
+    fig, ax = _base_figure(style, figsize=(8.4, 6.4))
+    pitch.draw(ax=ax)
+    style_pitch_axes(ax, style)
+
+    dd = dff.dropna(subset=["x_start_plot", "y_start_plot", "x2", "y2"]).copy()
+
+    # Heat first
+    if len(dd):
+        try:
+            pitch.kdeplot(
+                dd["x2"], dd["y2"],
+                ax=ax,
+                fill=True,
+                levels=40,
+                alpha=style["kde_alpha"] * 0.65,
+                cmap=style["heatmap_cmap"],
+            )
+        except Exception:
+            pass
+
+    # Then trajectories فوق
+    color_map = _get_delivery_color_map(style)
+    if "delivery_type" in dd.columns and dd["delivery_type"].notna().any():
+        for dtype, grp in dd.groupby("delivery_type"):
+            dtype_l = str(dtype).lower()
+            for _, r in grp.iterrows():
+                rad = _curve_rad_for_delivery(dtype_l, str(r.get("corner_label", "unknown")))
+                _draw_curved_arrow(
+                    ax=ax,
+                    x1=r["x_start_plot"],
+                    y1=r["y_start_plot"],
+                    x2=r["x2"],
+                    y2=r["y2"],
+                    color=color_map.get(dtype_l, style["accent"]),
+                    style=style,
+                    rad=rad,
+                    linewidth_mult=0.9,
+                    alpha_mult=0.9,
+                )
+
+        if style.get("show_legend", True):
+            handles = []
+            labels = []
+            for k, v in color_map.items():
+                if (dd["delivery_type"].astype(str).str.lower() == k).any():
+                    handles.append(Line2D([0], [0], color=v, lw=style["trajectory_width"] + 0.6))
+                    labels.append(k.title())
+            if handles:
+                leg = ax.legend(handles, labels, frameon=True, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=3)
+                style_legend(leg, style)
+    else:
+        for _, r in dd.iterrows():
+            _draw_curved_arrow(
+                ax=ax,
+                x1=r["x_start_plot"],
+                y1=r["y_start_plot"],
+                x2=r["x2"],
+                y2=r["y2"],
+                color=style["accent"],
+                style=style,
+                rad=0.0,
+                linewidth_mult=0.9,
+                alpha_mult=0.9,
+            )
+
+    set_chart_title(ax, "Heat + Trajectories", style)
+    if style["tight_layout"]:
+        fig.tight_layout()
+    return fig
+
+
+def chart_trajectory_clusters(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
+    style = resolve_style(theme_name, style_overrides)
+    pitch = make_pitch(style)
+    dff = _prepare_delivery_df(df, flip_y)
+
+    fig, ax = _base_figure(style, figsize=(8.4, 6.4))
+    pitch.draw(ax=ax)
+    style_pitch_axes(ax, style)
+
+    dd = dff.dropna(subset=["x_start_plot", "y_start_plot", "x2", "y2"]).copy()
+    if len(dd) == 0:
+        set_chart_title(ax, "Trajectory Clusters", style)
+        if style["tight_layout"]:
+            fig.tight_layout()
+        return fig
+
+    dd["cluster"] = _safe_cluster_labels(dd, n_clusters=3)
+    cluster_palette = [style["accent"], style["warning"], style["success"], style["accent_2"], style["danger"]]
+
+    handles = []
+    labels = []
+
+    for i, (cluster_id, grp) in enumerate(dd.groupby("cluster")):
+        color = cluster_palette[i % len(cluster_palette)]
+
+        # Draw light arrows لكل cluster
+        for _, r in grp.iterrows():
+            dtype_l = str(r.get("delivery_type", "")).lower()
+            rad = _curve_rad_for_delivery(dtype_l, str(r.get("corner_label", "unknown")))
+            _draw_curved_arrow(
+                ax=ax,
+                x1=r["x_start_plot"],
+                y1=r["y_start_plot"],
+                x2=r["x2"],
+                y2=r["y2"],
+                color=color,
+                style=style,
+                rad=rad,
+                linewidth_mult=0.9,
+                alpha_mult=0.7,
+            )
+
+        # Average path for cluster
+        avg_x1 = grp["x_start_plot"].mean()
+        avg_y1 = grp["y_start_plot"].mean()
+        avg_x2 = grp["x2"].mean()
+        avg_y2 = grp["y2"].mean()
+        mode_corner = grp["corner_label"].mode().iloc[0] if grp["corner_label"].notna().any() else "unknown"
+        mode_dtype = grp["delivery_type"].mode().iloc[0] if ("delivery_type" in grp.columns and grp["delivery_type"].notna().any()) else ""
+        avg_rad = _curve_rad_for_delivery(str(mode_dtype).lower(), str(mode_corner))
+
+        _draw_curved_arrow(
+            ax=ax,
+            x1=avg_x1,
+            y1=avg_y1,
+            x2=avg_x2,
+            y2=avg_y2,
+            color=color,
+            style=style,
+            rad=avg_rad,
+            linewidth_mult=2.4,
+            alpha_mult=1.15,
+        )
+        pitch.scatter([avg_x2], [avg_y2], ax=ax, s=style["marker_size"] * 1.25, color=color, edgecolors=style["pitch_lines"], linewidth=1.2)
+
+        handles.append(Line2D([0], [0], color=color, lw=style["trajectory_width"] * 2))
+        labels.append(f"Cluster {int(cluster_id) + 1} ({len(grp)})")
+
+    if style.get("show_legend", True) and handles:
+        leg = ax.legend(handles, labels, frameon=True, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=3)
+        style_legend(leg, style)
+
+    set_chart_title(ax, "Trajectory Clusters", style)
     if style["tight_layout"]:
         fig.tight_layout()
     return fig
@@ -605,11 +1021,13 @@ def chart_delivery_length_distribution(df: pd.DataFrame, theme_name: str, flip_y
     style = resolve_style(theme_name, style_overrides)
     fig, ax = _base_figure(style, figsize=(7.6, 4.8))
 
-    dd = df.dropna(subset=["x", "y", "x2", "y2"]).copy()
+    dff = _prepare_delivery_df(df, flip_y)
+    dd = dff.dropna(subset=["x_start_plot", "y_start_plot", "x2", "y2"]).copy()
+
     if len(dd) == 0:
         lengths = pd.Series(dtype=float)
     else:
-        lengths = ((dd["x2"] - dd["x"]) ** 2 + (dd["y2"] - dd["y"]) ** 2) ** 0.5
+        lengths = ((dd["x2"] - dd["x_start_plot"]) ** 2 + (dd["y2"] - dd["y_start_plot"]) ** 2) ** 0.5
 
     ax.hist(lengths, bins=12, color=style["accent"], edgecolor=style["lines"], linewidth=0.8, alpha=0.92)
     themed_bar(ax, style)
@@ -626,20 +1044,22 @@ def chart_delivery_direction_map(df: pd.DataFrame, theme_name: str, flip_y: bool
     style = resolve_style(theme_name, style_overrides)
     fig, ax = _base_figure(style, figsize=(7.6, 4.8))
 
-    dd = df.dropna(subset=["x", "y", "x2", "y2"]).copy()
+    dff = _prepare_delivery_df(df, flip_y)
+    dd = dff.dropna(subset=["x_start_plot", "y_start_plot", "x2", "y2"]).copy()
+
     if len(dd) == 0:
         summary = pd.Series(dtype=float)
     else:
-        dx = dd["x2"] - dd["x"]
-        dy = dd["y2"] - dd["y"]
+        dx = dd["x2"] - dd["x_start_plot"]
+        dy = dd["y2"] - dd["y_start_plot"]
         angles = dy.combine(dx, lambda yv, xv: math.degrees(math.atan2(yv, xv)))
         labels = pd.cut(
             angles,
-            bins=[-181, -45, 0, 45, 181],
-            labels=["Down", "Slight Down", "Slight Up", "Up"],
+            bins=[-181, -60, -10, 10, 60, 181],
+            labels=["Down", "Down-In", "Straight", "Up-In", "Up"],
             include_lowest=True,
         )
-        summary = labels.value_counts().reindex(["Down", "Slight Down", "Slight Up", "Up"]).fillna(0)
+        summary = labels.value_counts().reindex(["Down", "Down-In", "Straight", "Up-In", "Up"]).fillna(0)
 
     ax.bar(summary.index.astype(str), summary.values, color=style["accent_2"], edgecolor=style["lines"], linewidth=0.8)
     themed_bar(ax, style)
@@ -680,7 +1100,9 @@ def chart_target_zone_breakdown(df: pd.DataFrame, theme_name: str, flip_y: bool 
     style = resolve_style(theme_name, style_overrides)
     fig, ax = _base_figure(style, figsize=(7.4, 4.6))
 
-    counts = get_target_zone_series(df).value_counts()
+    dff = _prepare_delivery_df(df, flip_y)
+    counts = get_target_zone_series(dff).value_counts()
+
     ax.bar(counts.index, counts.values, color=style["accent"], edgecolor=style["lines"], linewidth=0.8)
     themed_bar(ax, style)
     set_chart_title(ax, "Target Zone Breakdown", style)
@@ -696,7 +1118,8 @@ def chart_first_contact_win_by_zone(df: pd.DataFrame, theme_name: str, flip_y: b
     style = resolve_style(theme_name, style_overrides)
     fig, ax = _base_figure(style, figsize=(7.6, 4.8))
 
-    dd = df.copy()
+    dff = _prepare_delivery_df(df, flip_y)
+    dd = dff.copy()
     dd["zone_calc"] = get_target_zone_series(dd)
     dd["fc_win_calc"] = get_first_contact_win_series(dd)
 
@@ -734,7 +1157,7 @@ def chart_routine_breakdown(df: pd.DataFrame, theme_name: str, flip_y: bool = Fa
 def chart_shot_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
     style = resolve_style(theme_name, style_overrides)
     pitch = make_pitch(style)
-    dff = apply_flip_y(df, flip_y)
+    dff = _prepare_delivery_df(df, flip_y)
 
     fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
@@ -766,7 +1189,7 @@ def chart_shot_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False, styl
 def chart_second_ball_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
     style = resolve_style(theme_name, style_overrides)
     pitch = make_pitch(style)
-    dff = apply_flip_y(df, flip_y)
+    dff = _prepare_delivery_df(df, flip_y)
 
     fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
@@ -814,7 +1237,7 @@ def chart_second_ball_map(df: pd.DataFrame, theme_name: str, flip_y: bool = Fals
 def chart_defensive_vulnerability_map(df: pd.DataFrame, theme_name: str, flip_y: bool = False, style_overrides: Optional[dict] = None):
     style = resolve_style(theme_name, style_overrides)
     pitch = make_pitch(style)
-    dff = apply_flip_y(df, flip_y)
+    dff = _prepare_delivery_df(df, flip_y)
 
     fig, ax = _base_figure(style, figsize=(8, 6))
     pitch.draw(ax=ax)
@@ -910,6 +1333,9 @@ CHART_BUILDERS = {
     "Delivery Heatmap": chart_delivery_heatmap,
     "Delivery End Scatter": chart_delivery_end_scatter,
     "Delivery Trajectories": chart_delivery_trajectories,
+    "Average Delivery Path": chart_average_delivery_path,
+    "Heat + Trajectories": chart_heat_plus_trajectories,
+    "Trajectory Clusters": chart_trajectory_clusters,
     "Delivery Length Distribution": chart_delivery_length_distribution,
     "Delivery Direction Map": chart_delivery_direction_map,
     "Outcome Distribution": chart_outcome_distribution,
