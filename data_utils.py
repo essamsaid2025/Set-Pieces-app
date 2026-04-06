@@ -67,18 +67,21 @@ def _to_num(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
 
 def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    out.columns = [str(c).strip() for c in out.columns]
+
+    # خلي أسماء الأعمدة lowercase
+    out.columns = [str(c).strip().lower() for c in out.columns]
 
     # ===== AUTO COLUMN MAPPING =====
     rename_map = {
         "event": "set_piece_type",
         "type": "set_piece_type",
         "event_type": "set_piece_type",
-        "end_x": "x2",
-        "end_y": "y2",
         "start_x": "x",
         "start_y": "y",
+        "end_x": "x2",
+        "end_y": "y2",
     }
+
     out = out.rename(columns={k: v for k, v in rename_map.items() if k in out.columns})
 
     for c in TEXT_COLS:
