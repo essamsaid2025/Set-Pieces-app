@@ -73,7 +73,6 @@ THEMES = {
     },
 }
 
-
 FONT_FAMILIES = [
     "DejaVu Sans",
     "Arial",
@@ -82,7 +81,6 @@ FONT_FAMILIES = [
     "Trebuchet MS",
     "Tahoma",
 ]
-
 
 HEATMAP_STYLES = [
     "Blues",
@@ -107,7 +105,7 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
     base = get_theme(theme_name)
     controls = controls or {}
 
-    style = {
+    return {
         "theme_name": theme_name,
         "bg": controls.get("bg", base["bg"]),
         "panel": controls.get("panel", base["panel"]),
@@ -149,7 +147,6 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         "export_dpi": controls.get("export_dpi", 260),
         "heatmap_cmap": controls.get("heatmap_cmap", "Blues"),
     }
-    return style
 
 
 def inject_styles():
@@ -163,7 +160,6 @@ def inject_styles():
                 --border: #243041;
                 --text: #f3f4f6;
                 --muted: #9ca3af;
-                --accent: #38bdf8;
             }
 
             .stApp {
@@ -185,16 +181,6 @@ def inject_styles():
 
             [data-testid="stSidebar"] * {
                 color: #f8fafc !important;
-            }
-
-            [data-testid="stSidebar"] .stSelectbox label,
-            [data-testid="stSidebar"] .stMultiSelect label,
-            [data-testid="stSidebar"] .stCheckbox label,
-            [data-testid="stSidebar"] .stSlider label,
-            [data-testid="stSidebar"] .stColorPicker label,
-            [data-testid="stSidebar"] .stFileUploader label {
-                color: #f8fafc !important;
-                font-weight: 600;
             }
 
             [data-testid="stSidebar"] div[data-baseweb="select"] > div,
@@ -275,37 +261,22 @@ def inject_styles():
                 margin-top: 10px;
             }
 
-            .section-divider {
-                height: 1px;
-                background: linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.12), rgba(255,255,255,0.03));
-                margin: 14px 0;
-                border-radius: 999px;
-            }
-
-            div[data-testid="stFileUploader"] section {
-                background: rgba(15,23,42,0.85);
-                border: 1px dashed #334155;
-                border-radius: 14px;
-            }
-
-            .stButton > button {
-                width: 100%;
-                border-radius: 12px;
-                border: 1px solid #2d3b50;
-                background: linear-gradient(135deg, #0ea5e9, #2563eb);
-                color: white;
-                font-weight: 700;
-                padding: 0.6rem 1rem;
-            }
-
+            .stButton > button,
             .stDownloadButton > button {
                 width: 100%;
                 border-radius: 12px;
                 border: 1px solid #2d3b50;
-                background: #162235;
                 color: white;
                 font-weight: 700;
                 padding: 0.6rem 1rem;
+            }
+
+            .stButton > button {
+                background: linear-gradient(135deg, #0ea5e9, #2563eb);
+            }
+
+            .stDownloadButton > button {
+                background: #162235;
             }
 
             .small-kpi {
@@ -326,12 +297,6 @@ def inject_styles():
                 color: #ffffff;
                 font-size: 1.1rem;
                 font-weight: 800;
-            }
-
-            .stExpander {
-                border-radius: 14px !important;
-                border: 1px solid #243041 !important;
-                background: rgba(15,23,42,0.55) !important;
             }
         </style>
         """,
