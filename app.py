@@ -160,25 +160,6 @@ with left_col:
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="panel-card">', unsafe_allow_html=True)
-    st.markdown('<div class="panel-title">Recommended Maps From Your File</div>', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="panel-note">
-            Best maps for your CSV:
-            <br>• Delivery Start Map
-            <br>• Delivery End Scatter
-            <br>• Delivery Heatmap
-            <br>• Delivery Trajectories
-            <br>• Delivery Length Distribution
-            <br>• Target Zone Breakdown
-            <br>• Taker Profile
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
 with right_col:
     st.markdown('<div class="preview-shell">', unsafe_allow_html=True)
     st.markdown("### 📊 Preview & Downloads")
