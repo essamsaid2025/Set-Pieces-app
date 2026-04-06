@@ -11,6 +11,7 @@ TEXT_COLS = [
     "date",
     "competition",
     "set_piece_type",
+    "event",
     "side",
     "delivery_type",
     "taker",
@@ -36,6 +37,7 @@ NUMERIC_COLS = [
 
 def load_data(uploaded_file) -> pd.DataFrame:
     ext = os.path.splitext(uploaded_file.name)[1].lower()
+
     if ext == ".csv":
         for enc in ["utf-8", "utf-8-sig", "cp1256", "cp1252", "latin1"]:
             try:
@@ -65,15 +67,42 @@ def _to_num(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
     return out
 
 
+def _resolve_set_piece_type(out: pd.DataFrame) -> pd.DataFrame:
+    """
+    Priority:
+    1) set_piece_type
+    2) event
+    3) outcome
+    """
+    if "set_piece_type" not in out.columns:
+        out["set_piece_type"] = pd.NA
+
+    if "event" in out.columns:
+        out["set_piece_type"] = out["set_piece_type"].fillna(out["event"])
+
+    if "outcome" in out.columns:
+        out["set_piece_type"] = out["set_piece_type"].fillna(out["outcome"])
+
+    if "set_piece_type" in out.columns:
+        out["set_piece_type"] = out["set_piece_type"].replace(
+            {
+                "free kick": "free_kick",
+                "freekick": "free_kick",
+                "corner kick": "corner",
+            }
+        )
+
+    return out
+
+
 def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
 
-    # خلي أسماء الأعمدة lowercase
+    # lowercase all column names first
     out.columns = [str(c).strip().lower() for c in out.columns]
 
-    # ===== AUTO COLUMN MAPPING =====
+    # auto column mapping
     rename_map = {
-        "event": "set_piece_type",
         "type": "set_piece_type",
         "event_type": "set_piece_type",
         "start_x": "x",
@@ -81,15 +110,17 @@ def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
         "end_x": "x2",
         "end_y": "y2",
     }
-
     out = out.rename(columns={k: v for k, v in rename_map.items() if k in out.columns})
 
+    # normalize text columns
     for c in TEXT_COLS:
         if c in out.columns:
             out[c] = _normalize_text_series(out[c])
 
+    # numeric columns
     out = _to_num(out, NUMERIC_COLS)
 
+    # phase cleanup
     if "phase" in out.columns:
         out["phase"] = out["phase"].replace(
             {
@@ -98,6 +129,7 @@ def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
             }
         )
 
+    # delivery cleanup
     if "delivery_type" in out.columns:
         out["delivery_type"] = out["delivery_type"].replace(
             {
@@ -106,6 +138,7 @@ def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
             }
         )
 
+    # outcome cleanup
     if "outcome" in out.columns:
         out["outcome"] = out["outcome"].replace(
             {
@@ -115,13 +148,8 @@ def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
             }
         )
 
-    if "set_piece_type" in out.columns:
-        out["set_piece_type"] = out["set_piece_type"].replace(
-            {
-                "free kick": "free_kick",
-                "freekick": "free_kick",
-            }
-        )
+    # if set_piece_type is missing, use event or outcome
+    out = _resolve_set_piece_type(out)
 
     return out
 
@@ -136,3 +164,16 @@ def bool01(series: pd.Series) -> pd.Series:
 
     s = series.astype(str).str.strip().str.lower()
     return s.isin(["1", "true", "yes", "y"]).astype(int)
+
+
+def apply_flip_y(df: pd.DataFrame, flip_y: bool = False) -> pd.DataFrame:
+    out = df.copy()
+    if not flip_y:
+        return out
+
+    for c in ["y", "y2", "y3"]:
+        if c in out.columns:
+            out[c] = pd.to_numeric(out[c], errors="coerce")
+            out[c] = 100 - out[c]
+
+    return out
