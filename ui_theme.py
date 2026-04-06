@@ -38,8 +38,8 @@ THEMES = {
         "success": "#22C55E",
     },
     "Sofa Light": {
-        "bg": "#FFFFFF",
-        "panel": "#F5F7FA",
+        "bg": "#F7F9FC",
+        "panel": "#FFFFFF",
         "panel_2": "#EEF2F7",
         "pitch": "#2F6B3A",
         "pitch_stripe": None,
@@ -84,6 +84,21 @@ FONT_FAMILIES = [
 ]
 
 
+HEATMAP_STYLES = [
+    "Blues",
+    "Reds",
+    "Greens",
+    "Purples",
+    "Oranges",
+    "YlOrRd",
+    "YlGnBu",
+    "coolwarm",
+    "magma",
+    "viridis",
+    "cividis",
+]
+
+
 def get_theme(theme_name: str) -> Dict:
     return THEMES.get(theme_name, THEMES["The Athletic Dark"]).copy()
 
@@ -111,7 +126,6 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         "success": controls.get("success", base["success"]),
         "font_family": controls.get("font_family", "DejaVu Sans"),
         "title_size": controls.get("title_size", 16),
-        "subtitle_size": controls.get("subtitle_size", 11),
         "label_size": controls.get("label_size", 11),
         "tick_size": controls.get("tick_size", 10),
         "legend_size": controls.get("legend_size", 10),
@@ -119,20 +133,22 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         "line_width": controls.get("line_width", 1.4),
         "marker_size": controls.get("marker_size", 90),
         "marker_edge_width": controls.get("marker_edge_width", 1.2),
+        "trajectory_width": controls.get("trajectory_width", 1.8),
+        "trajectory_headwidth": controls.get("trajectory_headwidth", 4.5),
         "alpha": controls.get("alpha", 0.9),
+        "trajectory_alpha": controls.get("trajectory_alpha", 0.75),
         "grid_alpha": controls.get("grid_alpha", 0.18),
         "kde_alpha": controls.get("kde_alpha", 0.72),
         "show_grid": controls.get("show_grid", True),
         "show_legend": controls.get("show_legend", True),
         "show_title": controls.get("show_title", True),
-        "show_axis_labels": controls.get("show_axis_labels", True),
-        "show_ticks": controls.get("show_ticks", True),
+        "show_ticks": controls.get("show_ticks", False),
         "tight_layout": controls.get("tight_layout", True),
         "pitch_pad_x": controls.get("pitch_pad_x", 2),
         "pitch_pad_y": controls.get("pitch_pad_y", 2),
         "export_dpi": controls.get("export_dpi", 260),
+        "heatmap_cmap": controls.get("heatmap_cmap", "Blues"),
     }
-
     return style
 
 
@@ -161,6 +177,34 @@ def inject_styles():
                 padding-left: 1.2rem;
                 padding-right: 1.2rem;
                 max-width: 100%;
+            }
+
+            [data-testid="stSidebar"] {
+                background: #0f172a !important;
+            }
+
+            [data-testid="stSidebar"] * {
+                color: #f8fafc !important;
+            }
+
+            [data-testid="stSidebar"] .stSelectbox label,
+            [data-testid="stSidebar"] .stMultiSelect label,
+            [data-testid="stSidebar"] .stCheckbox label,
+            [data-testid="stSidebar"] .stSlider label,
+            [data-testid="stSidebar"] .stColorPicker label,
+            [data-testid="stSidebar"] .stFileUploader label {
+                color: #f8fafc !important;
+                font-weight: 600;
+            }
+
+            [data-testid="stSidebar"] div[data-baseweb="select"] > div,
+            [data-testid="stSidebar"] div[data-baseweb="input"] > div,
+            [data-testid="stSidebar"] .stTextInput > div > div,
+            [data-testid="stSidebar"] .stNumberInput > div > div,
+            [data-testid="stSidebar"] .stColorPicker > div > div {
+                background: #111827 !important;
+                color: #f8fafc !important;
+                border: 1px solid #334155 !important;
             }
 
             h1, h2, h3, h4, h5, h6, p, span, div, label {
@@ -242,14 +286,6 @@ def inject_styles():
                 background: rgba(15,23,42,0.85);
                 border: 1px dashed #334155;
                 border-radius: 14px;
-            }
-
-            div[data-baseweb="select"] > div,
-            div[data-baseweb="input"] > div,
-            .stTextInput > div > div,
-            .stNumberInput > div > div,
-            .stColorPicker > div > div {
-                background: #0f172a;
             }
 
             .stButton > button {
