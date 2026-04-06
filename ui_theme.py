@@ -1,4 +1,5 @@
 import streamlit as st
+from typing import Dict, Optional
 
 
 THEMES = {
@@ -83,11 +84,11 @@ FONT_FAMILIES = [
 ]
 
 
-def get_theme(theme_name: str):
+def get_theme(theme_name: str) -> Dict:
     return THEMES.get(theme_name, THEMES["The Athletic Dark"]).copy()
 
 
-def build_chart_style(theme_name: str, controls: dict | None = None) -> dict:
+def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
     base = get_theme(theme_name)
     controls = controls or {}
 
