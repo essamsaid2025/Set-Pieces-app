@@ -146,6 +146,9 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         "pitch_pad_y": controls.get("pitch_pad_y", 2),
         "export_dpi": controls.get("export_dpi", 260),
         "heatmap_cmap": controls.get("heatmap_cmap", "Blues"),
+        # ── NEW ──────────────────────────────────────────
+        "pitch_vertical": controls.get("pitch_vertical", False),
+        "show_thirds": controls.get("show_thirds", False),
     }
 
 
