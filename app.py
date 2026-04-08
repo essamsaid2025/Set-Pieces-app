@@ -38,6 +38,24 @@ with st.sidebar:
     uploaded = st.file_uploader("Upload your set piece file", type=["csv", "xlsx", "xls"])
 
     st.markdown("---")
+    st.markdown("## 🏟️ Pitch Controls")
+
+    pitch_orientation = st.radio(
+        "Pitch orientation",
+        options=["Horizontal", "Vertical"],
+        index=0,
+        horizontal=True,
+        help="Switch all pitch-based charts between landscape (horizontal) and portrait (vertical) layout.",
+    )
+    pitch_vertical = pitch_orientation == "Vertical"
+
+    show_thirds = st.checkbox(
+        "Show thirds lines",
+        value=False,
+        help="Overlay dashed lines dividing the pitch into Defensive / Middle / Attacking thirds.",
+    )
+
+    st.markdown("---")
     st.markdown("## 🎨 Style Controls")
 
     base_theme = THEMES[theme_name]
@@ -94,6 +112,7 @@ with st.sidebar:
         "Delivery Length Distribution",
         "Target Zone Breakdown",
         "Taker Profile",
+        "Set Piece Landing Heatmap",
     ]
     selected_charts = st.multiselect("Choose charts", all_charts, default=default_charts)
 
@@ -137,6 +156,9 @@ style_overrides = {
     "tight_layout": tight_layout,
     "export_dpi": export_dpi,
     "heatmap_cmap": heatmap_cmap,
+    # ── NEW ──────────────────────────────────────────
+    "pitch_vertical": pitch_vertical,
+    "show_thirds": show_thirds,
 }
 chart_style = build_chart_style(theme_name, style_overrides)
 
@@ -149,6 +171,8 @@ with left_col:
         f"""
         <div class="panel-note">
             Theme: <b>{theme_name}</b><br>
+            Orientation: <b>{pitch_orientation}</b><br>
+            Thirds: <b>{"On" if show_thirds else "Off"}</b><br>
             Heatmap: <b>{heatmap_cmap}</b><br>
             Font: <b>{font_family}</b><br>
             Marker size: <b>{marker_size}</b><br>
@@ -226,7 +250,7 @@ with right_col:
     if not generate_clicked:
         render_placeholder(
             "Ready to generate",
-            "Adjust theme, heatmap style, chart controls, and filters from the sidebar, then click Generate.",
+            "Adjust theme, orientation, thirds, heatmap style, and filters from the sidebar, then click Generate.",
         )
         st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
