@@ -352,24 +352,55 @@ def _clean_numeric(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
 
 
 def _auto_scale_coordinates(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalise all coordinates to 100×64 space.
+
+    The CSV may use any of these systems:
+      • 100×64  (already correct – no-op)
+      • 100×100 (Wyscout) – y values go up to ~100
+      • 105×68  (StatsBomb metres) – x values go up to ~105
+
+    Key fix: we detect the scale factor from ALL y columns together so that
+    y, y2, y3 are always scaled by the **same** ratio, avoiding the bug where
+    y scaled (max=96→64) but y2 did not (max=64, wrongly treated as already scaled).
+    """
     out = df.copy()
     out = _clean_numeric(out, ["x", "y", "x2", "y2", "x3", "y3"])
-    for yc in ["y", "y2", "y3"]:
-        if yc in out.columns and out[yc].notna().any():
-            max_y = out[yc].max()
-            if pd.notna(max_y) and max_y > 64.5:
-                out[yc] = out[yc] * 64.0 / 100.0
-    for xc in ["x", "x2", "x3"]:
-        if xc in out.columns and out[xc].notna().any():
-            max_x = out[xc].max()
-            if pd.notna(max_x) and max_x > 100.5 and max_x <= 121:
-                out[xc] = out[xc] * 100.0 / max_x
+
+    # --- determine y scale factor from the maximum across ALL y columns ---
+    all_y_vals = pd.concat(
+        [out[c].dropna() for c in ["y", "y2", "y3"] if c in out.columns],
+        ignore_index=True,
+    )
+    if len(all_y_vals):
+        global_max_y = all_y_vals.max()
+        if pd.notna(global_max_y) and global_max_y > 64.5:
+            y_scale = 64.0 / global_max_y  # e.g. 64/100 = 0.64 for Wyscout
+            for yc in ["y", "y2", "y3"]:
+                if yc in out.columns:
+                    out[yc] = out[yc] * y_scale
+
+    # --- determine x scale factor ---
+    all_x_vals = pd.concat(
+        [out[c].dropna() for c in ["x", "x2", "x3"] if c in out.columns],
+        ignore_index=True,
+    )
+    if len(all_x_vals):
+        global_max_x = all_x_vals.max()
+        if pd.notna(global_max_x) and global_max_x > 100.5:
+            x_scale = 100.0 / global_max_x
+            for xc in ["x", "x2", "x3"]:
+                if xc in out.columns:
+                    out[xc] = out[xc] * x_scale
+
+    # --- clip to pitch bounds ---
     for xc in ["x", "x2", "x3"]:
         if xc in out.columns:
             out[xc] = out[xc].clip(0, 100)
     for yc in ["y", "y2", "y3"]:
         if yc in out.columns:
             out[yc] = out[yc].clip(0, 64)
+
     return out
 
 
@@ -384,30 +415,66 @@ def _get_delivery_color_map(style: dict):
 
 
 def _corner_anchor(x: float, y: float) -> Tuple[float, float, str]:
+    """
+    Map a corner kick origin (x, y) – already in 100×64 space – to the
+    exact corner-arc position and a label used for curve-direction logic.
+
+    Corner arcs sit at the four corners of the pitch:
+      top-right   : x≈100, y≈0
+      bottom-right: x≈100, y≈64
+      top-left    : x≈0,   y≈0
+      bottom-left : x≈0,   y≈64
+
+    The code detects which corner by checking which end of the pitch the
+    kick originates from (x) and which side (y).
+    """
     if pd.isna(x) or pd.isna(y):
         return x, y, "unknown"
+
+    # Attacking direction: corners on the right (x > 50) or left (x <= 50)
     side = "right" if x >= 50 else "left"
+    # Top of pitch (y near 0) or bottom (y near 64)
     half = "top" if y <= 32 else "bottom"
-    inset_x = 98 if side == "right" else 2
-    inset_y = 2 if half == "top" else 62
-    return inset_x, inset_y, f"{side}_{half}"
+
+    # Exact corner-arc positions (just inside the pitch)
+    corner_x = 99.5 if side == "right" else 0.5
+    corner_y = 0.5 if half == "top" else 63.5
+
+    return corner_x, corner_y, f"{side}_{half}"
 
 
 def _curve_rad_for_delivery(dtype: str, corner_label: str) -> float:
+    """
+    Return the arc3 curvature radius for a delivery arrow.
+
+    With corrected corner positions:
+      right_top    = top-right corner  (x≈100, y≈0)   → ball goes left & down into box
+      right_bottom = bottom-right corner (x≈100, y≈64) → ball goes left & up into box
+      left_top     = top-left corner  (x≈0, y≈0)
+      left_bottom  = bottom-left corner (x≈0, y≈64)
+
+    inswing  = ball curves toward goal (inward)
+    outswing = ball curves away from goal (outward)
+    """
     dtype = str(dtype).lower()
+    sign = 0.0
+
     if corner_label == "right_top":
-        if dtype == "inswing": return 0.38
-        if dtype == "outswing": return -0.38
+        # Arrow goes from top-right down into box
+        if dtype == "inswing":   sign =  0.30   # curves toward center of goal
+        elif dtype == "outswing": sign = -0.30
     elif corner_label == "right_bottom":
-        if dtype == "inswing": return -0.38
-        if dtype == "outswing": return 0.38
+        # Arrow goes from bottom-right up into box
+        if dtype == "inswing":   sign = -0.30
+        elif dtype == "outswing": sign =  0.30
     elif corner_label == "left_top":
-        if dtype == "inswing": return -0.38
-        if dtype == "outswing": return 0.38
+        if dtype == "inswing":   sign = -0.30
+        elif dtype == "outswing": sign =  0.30
     elif corner_label == "left_bottom":
-        if dtype == "inswing": return 0.38
-        if dtype == "outswing": return -0.38
-    return 0.0
+        if dtype == "inswing":   sign =  0.30
+        elif dtype == "outswing": sign = -0.30
+
+    return sign
 
 
 def _prepare_delivery_df(df: pd.DataFrame, flip_y: bool = False) -> pd.DataFrame:
@@ -466,27 +533,75 @@ def _safe_cluster_labels(dd: pd.DataFrame, n_clusters: int = 3) -> pd.Series:
 
 
 def _draw_box_zone_overlay(ax, style: dict, alpha: float = 0.18, vertical: bool = False):
-    """Zone overlay inside the box on the right goal (horizontal) or top goal (vertical)."""
+    """
+    Barcelona-style penalty box zones (Figure 8):
+
+    On a 100×64 pitch attacking right (x=100 = goal line):
+    ┌──────────────────────────────────────────────────────┐
+    │  NEAR POST SHORT  │ NR POST │  SMALL AREA  │         │  ← y=0..13.84
+    │                   │         │──────────────│ FAR     │
+    │                   │         │ PENALTY SPOT │ POST    │  ← y=13.84..50.16
+    │                   │         │──────────────│ LONG    │
+    │  FAR POST LONG    │ FAR PST │  SMALL AREA  │         │  ← y=50.16..64
+    │─────────────────────────────────────────────────────│
+    │              BOX FRONT (in front of box)            │
+    └──────────────────────────────────────────────────────┘
+
+    Pitch dimensions (100×64):
+      Full box  : x = 83.5 → 100,  y = 13.84 → 50.16
+      6-yd box  : x = 94.5 → 100,  y = 24.84 → 39.16
+      Penalty pt: x = 88.5,         y = 32
+      Goal posts: y = 28.34 → 35.66
+    """
+    # ── colour assignments (semi-transparent) ──────────────────────────────
+    c_near_short  = style["accent"]
+    c_near_post   = style["accent_2"]
+    c_small_area  = style["warning"]
+    c_penalty     = style["success"]
+    c_far_post    = style["accent_2"]
+    c_far_long    = style["accent"]
+    c_box_front   = style["muted"]
+
+    # ── zone geometry (x0, y0, width, height, label, colour) ───────────────
+    # All coordinates in 100×64 space, attacking toward x=100
     zones = [
-        ("Near Post", 84, 0, 16, 18, style["accent"]),
-        ("Central",   84, 18, 16, 28, style["warning"]),
-        ("Far Post",  84, 46, 16, 18, style["success"]),
+        # label,         x0,    y0,     w,      h,      colour
+        ("Near Post\nShort",  83.5,  0.0,   16.5,  13.84,  c_near_short),
+        ("Near\nPost",        83.5,  13.84,  5.5,  18.32,  c_near_post),
+        ("Small\nArea",       94.5,  24.84,  5.5,  14.32,  c_small_area),   # top half of 6yd
+        ("Penalty\nSpot",     83.5,  24.84, 11.0,  14.32,  c_penalty),
+        ("Far\nPost",         83.5,  39.16,  5.5,  11.0,   c_far_post),
+        ("Small\nArea",       94.5,  39.16,  5.5,  11.0,   c_small_area),   # bottom half of 6yd
+        ("Far Post\nLong",    83.5,  50.16, 16.5,  13.84,  c_far_long),
+        ("Box\nFront",        72.0,  13.84, 11.5,  36.32,  c_box_front),
     ]
+
     for label, zx, zy, zw, zh, color in zones:
         if vertical:
-            # rotate: x→y axis, y→x axis; pitch goes 0→100 along y, 0→64 along x
+            # swap axes: plot x becomes data y, plot y becomes data x
             rx, ry, rw, rh = zy, zx, zh, zw
         else:
             rx, ry, rw, rh = zx, zy, zw, zh
+
         ax.add_patch(
-            Rectangle((rx, ry), rw, rh, facecolor=color, edgecolor=style["pitch_lines"],
-                       linewidth=0.8, alpha=alpha, zorder=1)
+            Rectangle(
+                (rx, ry), rw, rh,
+                facecolor=color,
+                edgecolor=style["pitch_lines"],
+                linewidth=0.7,
+                alpha=alpha,
+                zorder=1,
+            )
         )
         ax.text(
-            rx + rw / 2, ry + rh / 2, label,
+            rx + rw / 2, ry + rh / 2,
+            label,
             ha="center", va="center",
-            fontsize=max(style["tick_size"] - 1, 8),
-            color=style["text"], alpha=0.85, zorder=2,
+            fontsize=max(style["tick_size"] - 2, 6),
+            color=style["text"],
+            alpha=0.90,
+            zorder=2,
+            linespacing=1.2,
         )
 
 
