@@ -146,9 +146,17 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         "pitch_pad_y": controls.get("pitch_pad_y", 2),
         "export_dpi": controls.get("export_dpi", 260),
         "heatmap_cmap": controls.get("heatmap_cmap", "Blues"),
-        # ── NEW ──────────────────────────────────────────
+        # ── Pitch layout ─────────────────────────────────
         "pitch_vertical": controls.get("pitch_vertical", False),
-        "show_thirds": controls.get("show_thirds", False),
+        "show_thirds":    controls.get("show_thirds",    False),
+        # ── Arrow colours (per delivery type) ────────────
+        "arrow_colors": controls.get("arrow_colors", {}),
+        # ── Bar chart colours ─────────────────────────────
+        "bar_colors": controls.get("bar_colors", {}),
+        # ── Shirt mockup colours ──────────────────────────
+        "shirt_body_color":   controls.get("shirt_body_color",   base["accent"]),
+        "shirt_sleeve_color": controls.get("shirt_sleeve_color", base["panel"]),
+        "shirt_number_color": controls.get("shirt_number_color", base["bg"]),
     }
 
 
