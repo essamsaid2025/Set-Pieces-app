@@ -101,6 +101,25 @@ with st.sidebar:
         tight_layout = st.checkbox("Use tight layout", value=True)
         export_dpi = st.slider("Export PNG DPI", 120, 400, 260)
 
+    with st.expander("🎯 Arrow Colors (by delivery type)", expanded=False):
+        st.caption("Override arrow colors per delivery type")
+        arrow_inswing  = st.color_picker("Inswing",  base_theme["accent"])
+        arrow_outswing = st.color_picker("Outswing", base_theme["warning"])
+        arrow_straight = st.color_picker("Straight", base_theme["accent_2"])
+        arrow_driven   = st.color_picker("Driven",   base_theme["success"])
+        arrow_short    = st.color_picker("Short",    base_theme["danger"])
+
+    with st.expander("📊 Bar Chart Colors", expanded=False):
+        st.caption("Override bar/histogram fill color")
+        bar_default = st.color_picker("Default bar color", base_theme["accent"])
+        bar_success  = st.color_picker("Success bar color", base_theme["success"])
+        bar_danger   = st.color_picker("Danger bar color",  base_theme["danger"])
+
+    with st.expander("👕 Shirt Colors (Taker Stats Table)", expanded=False):
+        shirt_body   = st.color_picker("Shirt body",   base_theme["accent"])
+        shirt_sleeve = st.color_picker("Shirt sleeves", base_theme["panel"])
+        shirt_number = st.color_picker("Number color",  base_theme["bg"])
+
     st.markdown("---")
     st.markdown("## 📊 Charts")
     all_charts = list(CHART_BUILDERS.keys())
@@ -113,6 +132,7 @@ with st.sidebar:
         "Target Zone Breakdown",
         "Taker Profile",
         "Set Piece Landing Heatmap",
+        "Taker Stats Table",
     ]
     selected_charts = st.multiselect("Choose charts", all_charts, default=default_charts)
 
@@ -156,9 +176,27 @@ style_overrides = {
     "tight_layout": tight_layout,
     "export_dpi": export_dpi,
     "heatmap_cmap": heatmap_cmap,
-    # ── NEW ──────────────────────────────────────────
+    # ── pitch layout ─────────────────────────────────
     "pitch_vertical": pitch_vertical,
-    "show_thirds": show_thirds,
+    "show_thirds":    show_thirds,
+    # ── arrow colours ────────────────────────────────
+    "arrow_colors": {
+        "inswing":  arrow_inswing,
+        "outswing": arrow_outswing,
+        "straight": arrow_straight,
+        "driven":   arrow_driven,
+        "short":    arrow_short,
+    },
+    # ── bar colours ───────────────────────────────────
+    "bar_colors": {
+        "default": bar_default,
+        "success": bar_success,
+        "danger":  bar_danger,
+    },
+    # ── shirt colours ─────────────────────────────────
+    "shirt_body_color":   shirt_body,
+    "shirt_sleeve_color": shirt_sleeve,
+    "shirt_number_color": shirt_number,
 }
 chart_style = build_chart_style(theme_name, style_overrides)
 
