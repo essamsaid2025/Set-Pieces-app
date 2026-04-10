@@ -151,3 +151,7 @@ def compute_zone_player_stats(df, corner_side="right"):
         "Penalty Spot": "players_penalty",
         "Far Post": "players_far_post",
         "Far Post Long": "players_far_post_long",
+        "Box Front": "players_box",
+    }
+    for label,zx,zy,zw,zh in zones:
+        mask=(dd["x2"]>=zx)&(dd["x2"]<zx+zw)&(dd["y2
