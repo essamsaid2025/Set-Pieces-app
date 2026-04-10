@@ -101,6 +101,10 @@ with st.sidebar:
         tight_layout = st.checkbox("Use tight layout", value=True)
         export_dpi = st.slider("Export PNG DPI", 120, 400, 260)
 
+    with st.expander("⚽ Scatter Dot Color", expanded=False):
+        st.caption("Color for delivery end scatter points")
+        scatter_dot_color = st.color_picker("Scatter dot color", base_theme["accent"])
+
     with st.expander("🎯 Arrow Colors (by delivery type)", expanded=False):
         st.caption("Override arrow colors per delivery type")
         arrow_inswing  = st.color_picker("Inswing",  base_theme["accent"])
@@ -124,13 +128,12 @@ with st.sidebar:
     st.markdown("## 📊 Charts")
     all_charts = list(CHART_BUILDERS.keys())
     default_charts = [
-        "Delivery Start Map",
-        "Delivery Heatmap",
-        "Delivery End Scatter",
-        "Delivery Trajectories",
-        "Delivery Length Distribution",
-        "Target Zone Breakdown",
-        "Taker Profile",
+        "Delivery Trajectories - Left Corners",
+        "Delivery Trajectories - Right Corners",
+        "Delivery End Scatter - Left Corner",
+        "Delivery End Scatter - Right Corner",
+        "Zone Delivery Count Map - Left Corner",
+        "Zone Delivery Count Map - Right Corner",
         "Set Piece Landing Heatmap",
         "Taker Stats Table",
     ]
@@ -179,6 +182,8 @@ style_overrides = {
     # ── pitch layout ─────────────────────────────────
     "pitch_vertical": pitch_vertical,
     "show_thirds":    show_thirds,
+    # ── scatter dot color ─────────────────────────────
+    "scatter_dot_color": scatter_dot_color,
     # ── arrow colours ────────────────────────────────
     "arrow_colors": {
         "inswing":  arrow_inswing,
