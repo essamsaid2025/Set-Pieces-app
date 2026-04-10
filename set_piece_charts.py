@@ -690,3 +690,20 @@ def chart_delivery_start_map(df,tn,flip_y=False,ov=None):
 #   "Zone Player Stats": chart_zone_player_stats,
 #   ...
 # }
+    # ──────────────────────────────────────────────────────────────────────────────
+# Export mapping used by the Streamlit app
+# Ensure every name here points to a real function defined above.
+# Add or remove entries to match the charts your app supports.
+# ──────────────────────────────────────────────────────────────────────────────
+CHART_BUILDERS = {
+    "Delivery Trajectories - Left Corner": chart_delivery_trajectories_left,
+    "Delivery Trajectories - Right Corner": chart_delivery_trajectories_right,
+    "Delivery End Scatter - Left Corner": chart_delivery_end_scatter_left,
+    "Delivery End Scatter - Right Corner": chart_delivery_end_scatter_right,
+    "Zone Delivery Count Map - Left Corner": chart_zone_count_left,
+    "Zone Delivery Count Map - Right Corner": chart_zone_count_right,
+    "Zone Player Stats - Left Corner": lambda df, **kw: chart_zone_player_stats(df, corner_side="left", **kw),
+    "Zone Player Stats - Right Corner": lambda df, **kw: chart_zone_player_stats(df, corner_side="right", **kw),
+    "Delivery Start Map": chart_delivery_start_map,
+    # add other chart name → function mappings here if you use them in the app
+}
