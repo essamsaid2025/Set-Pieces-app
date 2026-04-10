@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 
 from data_utils import load_data, normalize_set_piece_df, ensure_columns, apply_flip_y
@@ -46,10 +45,15 @@ with st.sidebar:
         options=["Horizontal", "Vertical"],
         index=0,
         horizontal=True,
+        help="Switch all pitch-based charts between landscape (horizontal) and portrait (vertical) layout.",
     )
     pitch_vertical = pitch_orientation == "Vertical"
 
-    show_thirds = st.checkbox("Show thirds lines", value=False)
+    show_thirds = st.checkbox(
+        "Show thirds lines",
+        value=False,
+        help="Overlay dashed lines dividing the pitch into Defensive / Middle / Attacking thirds.",
+    )
 
     st.markdown("---")
     st.markdown("## 🎨 Style Controls")
@@ -72,6 +76,12 @@ with st.sidebar:
         warning = st.color_picker("Warning", base_theme["warning"])
         danger = st.color_picker("Danger", base_theme["danger"])
 
+    with st.expander("Typography", expanded=False):
+        title_size = st.slider("Title size", 10, 28, 16)
+        label_size = st.slider("Axis label size", 8, 22, 11)
+        tick_size = st.slider("Tick size", 8, 20, 10)
+        legend_size = st.slider("Legend size", 8, 20, 10)
+
     with st.expander("Markers / Lines / Heat", expanded=False):
         marker_size = st.slider("Marker size", 20, 220, 90)
         marker_edge_width = st.slider("Marker edge width", 0.0, 3.5, 1.2, 0.1)
@@ -92,33 +102,46 @@ with st.sidebar:
         export_dpi = st.slider("Export PNG DPI", 120, 400, 260)
 
     with st.expander("⚽ Scatter Dot Color", expanded=False):
+        st.caption("Color for delivery end scatter points")
         scatter_dot_color = st.color_picker("Scatter dot color", base_theme["accent"])
 
     with st.expander("🎯 Arrow Colors (by delivery type)", expanded=False):
+        st.caption("Override arrow colors per delivery type")
         arrow_inswing  = st.color_picker("Inswing",  base_theme["accent"])
         arrow_outswing = st.color_picker("Outswing", base_theme["warning"])
         arrow_straight = st.color_picker("Straight", base_theme["accent_2"])
         arrow_driven   = st.color_picker("Driven",   base_theme["success"])
         arrow_short    = st.color_picker("Short",    base_theme["danger"])
 
+    with st.expander("📊 Bar Chart Colors", expanded=False):
+        st.caption("Override bar/histogram fill color")
+        bar_default = st.color_picker("Default bar color", base_theme["accent"])
+        bar_success  = st.color_picker("Success bar color", base_theme["success"])
+        bar_danger   = st.color_picker("Danger bar color",  base_theme["danger"])
+
+    with st.expander("👕 Shirt Colors (Taker Stats Table)", expanded=False):
+        shirt_body   = st.color_picker("Shirt body",   base_theme["accent"])
+        shirt_sleeve = st.color_picker("Shirt sleeves", base_theme["panel"])
+        shirt_number = st.color_picker("Number color",  base_theme["bg"])
+
     st.markdown("---")
     st.markdown("## 📊 Charts")
     all_charts = list(CHART_BUILDERS.keys())
     default_charts = [
-        "Delivery Trajectories - Left Corner",
-        "Delivery Trajectories - Right Corner",
+        "Delivery Trajectories - Left Corners",
+        "Delivery Trajectories - Right Corners",
         "Delivery End Scatter - Left Corner",
         "Delivery End Scatter - Right Corner",
         "Zone Delivery Count Map - Left Corner",
         "Zone Delivery Count Map - Right Corner",
-        "Zone Player Stats - Right Corner",
+        "Set Piece Landing Heatmap",
+        "Taker Stats Table",
     ]
     selected_charts = st.multiselect("Choose charts", all_charts, default=default_charts)
 
     with st.expander("Chart requirements", expanded=False):
         for ch in selected_charts:
-            req = CHART_REQUIREMENTS.get(ch, [])
-            st.write(f"**{ch}** → " + ", ".join(req))
+            st.write(f"**{ch}** → " + ", ".join(CHART_REQUIREMENTS[ch]))
 
     generate_clicked = st.button("Generate Set Piece Analysis", use_container_width=True)
 
@@ -136,6 +159,10 @@ style_overrides = {
     "warning": warning,
     "danger": danger,
     "font_family": font_family,
+    "title_size": title_size,
+    "label_size": label_size,
+    "tick_size": tick_size,
+    "legend_size": legend_size,
     "marker_size": marker_size,
     "marker_edge_width": marker_edge_width,
     "line_width": line_width,
@@ -152,9 +179,12 @@ style_overrides = {
     "tight_layout": tight_layout,
     "export_dpi": export_dpi,
     "heatmap_cmap": heatmap_cmap,
+    # ── pitch layout ─────────────────────────────────
     "pitch_vertical": pitch_vertical,
     "show_thirds":    show_thirds,
+    # ── scatter dot color ─────────────────────────────
     "scatter_dot_color": scatter_dot_color,
+    # ── arrow colours ────────────────────────────────
     "arrow_colors": {
         "inswing":  arrow_inswing,
         "outswing": arrow_outswing,
@@ -162,6 +192,16 @@ style_overrides = {
         "driven":   arrow_driven,
         "short":    arrow_short,
     },
+    # ── bar colours ───────────────────────────────────
+    "bar_colors": {
+        "default": bar_default,
+        "success": bar_success,
+        "danger":  bar_danger,
+    },
+    # ── shirt colours ─────────────────────────────────
+    "shirt_body_color":   shirt_body,
+    "shirt_sleeve_color": shirt_sleeve,
+    "shirt_number_color": shirt_number,
 }
 chart_style = build_chart_style(theme_name, style_overrides)
 
@@ -219,13 +259,12 @@ with right_col:
     filter_cols = st.columns(4)
 
     with filter_cols[0]:
-        if "set_piece" in df.columns or "set_piece_type" in df.columns:
-            col = "set_piece" if "set_piece" in df.columns else "set_piece_type"
-            sp_values = [x for x in df[col].dropna().astype(str).unique().tolist() if x and x != "nan"]
+        if "set_piece_type" in df.columns:
+            sp_values = [x for x in df["set_piece_type"].dropna().astype(str).unique().tolist() if x and x != "nan"]
             if sp_values:
                 selected_sp = st.multiselect("Set piece types", sp_values, default=sp_values)
                 if selected_sp:
-                    df = df[df[col].isin(selected_sp)].copy()
+                    df = df[df["set_piece_type"].isin(selected_sp)].copy()
 
     with filter_cols[1]:
         if "team" in df.columns:
@@ -262,8 +301,7 @@ with right_col:
     figures = []
 
     for chart_name in selected_charts:
-        builder = CHART_BUILDERS.get(chart_name)
-        req = CHART_REQUIREMENTS.get(chart_name, [])
+        req = CHART_REQUIREMENTS[chart_name]
         missing = ensure_columns(df, req)
 
         st.markdown('<div class="panel-card">', unsafe_allow_html=True)
@@ -276,7 +314,7 @@ with right_col:
             continue
 
         try:
-            fig = builder(
+            fig = CHART_BUILDERS[chart_name](
                 df.copy(),
                 theme_name=theme_name,
                 flip_y=False,
