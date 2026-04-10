@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 
 from data_utils import load_data, normalize_set_piece_df, ensure_columns, apply_flip_y
@@ -13,7 +14,14 @@ from ui_theme import (
 )
 from set_piece_charts import (
     CHART_REQUIREMENTS,
-    CHART_BUILDERS,
+    # import the builders you need
+    chart_delivery_trajectories_left,
+    chart_delivery_trajectories_right,
+    chart_delivery_end_scatter_left,
+    chart_delivery_end_scatter_right,
+    chart_zone_count_left,
+    chart_zone_count_right,
+    chart_zone_player_stats,
     save_report_pdf,
     fig_to_png_bytes,
 )
@@ -126,22 +134,33 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("## 📊 Charts")
+    CHART_BUILDERS = {
+        "Delivery Trajectories - Left Corner": chart_delivery_trajectories_left,
+        "Delivery Trajectories - Right Corner": chart_delivery_trajectories_right,
+        "Delivery End Scatter - Left Corner": chart_delivery_end_scatter_left,
+        "Delivery End Scatter - Right Corner": chart_delivery_end_scatter_right,
+        "Zone Delivery Count Map - Left Corner": chart_zone_count_left,
+        "Zone Delivery Count Map - Right Corner": chart_zone_count_right,
+        "Zone Player Stats - Left Corner": lambda df, **kw: chart_zone_player_stats(df, corner_side="left", **kw),
+        "Zone Player Stats - Right Corner": lambda df, **kw: chart_zone_player_stats(df, corner_side="right", **kw),
+    }
     all_charts = list(CHART_BUILDERS.keys())
     default_charts = [
-        "Delivery Trajectories - Left Corners",
-        "Delivery Trajectories - Right Corners",
+        "Delivery Trajectories - Left Corner",
+        "Delivery Trajectories - Right Corner",
         "Delivery End Scatter - Left Corner",
         "Delivery End Scatter - Right Corner",
         "Zone Delivery Count Map - Left Corner",
         "Zone Delivery Count Map - Right Corner",
-        "Set Piece Landing Heatmap",
-        "Taker Stats Table",
+        "Zone Player Stats - Right Corner",
     ]
     selected_charts = st.multiselect("Choose charts", all_charts, default=default_charts)
 
     with st.expander("Chart requirements", expanded=False):
         for ch in selected_charts:
-            st.write(f"**{ch}** → " + ", ".join(CHART_REQUIREMENTS[ch]))
+            # CHART_REQUIREMENTS keys may differ for new charts; show safe fallback
+            req = CHART_REQUIREMENTS.get(ch.split(" - ")[0] + (" - Left Corner" if "Left" in ch else " - Right Corner"), [])
+            st.write(f"**{ch}** → " + ", ".join(CHART_REQUIREMENTS.get(ch.split(" - ")[0] + (" - Left Corner" if "Left" in ch else " - Right Corner"), CHART_REQUIREMENTS.get(ch, []))))
 
     generate_clicked = st.button("Generate Set Piece Analysis", use_container_width=True)
 
@@ -182,7 +201,7 @@ style_overrides = {
     # ── pitch layout ─────────────────────────────────
     "pitch_vertical": pitch_vertical,
     "show_thirds":    show_thirds,
-    # ── scatter dot color ─────────────────────────────
+    # ── scatter dot color ────────────────────────────
     "scatter_dot_color": scatter_dot_color,
     # ── arrow colours ────────────────────────────────
     "arrow_colors": {
@@ -301,7 +320,9 @@ with right_col:
     figures = []
 
     for chart_name in selected_charts:
-        req = CHART_REQUIREMENTS[chart_name]
+        # map to builder
+        builder = CHART_BUILDERS.get(chart_name)
+        req = CHART_REQUIREMENTS.get(chart_name.split(" - ")[0], [])
         missing = ensure_columns(df, req)
 
         st.markdown('<div class="panel-card">', unsafe_allow_html=True)
@@ -314,12 +335,17 @@ with right_col:
             continue
 
         try:
-            fig = CHART_BUILDERS[chart_name](
-                df.copy(),
-                theme_name=theme_name,
-                flip_y=False,
-                style_overrides=chart_style,
-            )
+            # call builder with consistent kwargs
+            if "Zone Player Stats" in chart_name:
+                # builder is a lambda expecting corner_side via name
+                fig = builder(df.copy(), theme_name=theme_name, flip_y=False, style_overrides=chart_style)
+            else:
+                fig = builder(
+                    df.copy(),
+                    theme_name=theme_name,
+                    flip_y=False,
+                    style_overrides=chart_style,
+                )
             figures.append(fig)
             st.pyplot(fig, use_container_width=True)
 
