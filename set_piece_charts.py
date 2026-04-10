@@ -154,4 +154,10 @@ def compute_zone_player_stats(df, corner_side="right"):
         "Box Front": "players_box",
     }
     for label,zx,zy,zw,zh in zones:
-        mask=(dd["x2"]>=zx)&(dd["x2"]<zx+zw)&(dd["y2
+        mask=(dd["x2"]>=zx)&(dd["x2"]<zx+zw)&(dd["y2"]>=zy)&(dd["y2"]<zy+zh)
+        count=mask.sum()
+        rows.append({
+            "zone": label,
+            "count": int(count),
+            "pct": count/total if total else 0.0,
+            "col": label_to_col
