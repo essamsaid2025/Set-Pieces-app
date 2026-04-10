@@ -149,6 +149,8 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         # ── Pitch layout ─────────────────────────────────
         "pitch_vertical": controls.get("pitch_vertical", False),
         "show_thirds":    controls.get("show_thirds",    False),
+        # ── Scatter dot colour ────────────────────────────
+        "scatter_dot_color": controls.get("scatter_dot_color", base["accent"]),
         # ── Arrow colours (per delivery type) ────────────
         "arrow_colors": controls.get("arrow_colors", {}),
         # ── Bar chart colours ─────────────────────────────
