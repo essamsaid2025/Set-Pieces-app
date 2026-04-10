@@ -1,12 +1,12 @@
 # set_piece_charts.py
-import io, math, os, tempfile
+import io, os, tempfile
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.lines import Line2D
-from matplotlib.patches import Arc, FancyArrowPatch, Rectangle
+from matplotlib.patches import Rectangle, FancyArrowPatch
 
 from data_utils import bool01
 from ui_theme import build_chart_style
@@ -151,4 +151,5 @@ def compute_zone_player_stats(df, corner_side="right"):
         "Near Post Short": "players_near_post_short",
         "Near Post": "players_near_post",
         "Small Area": "players_6yard",
-        "Penalty Spot
+        "Penalty Spot": "players_penalty",
+        "Far Post": "players_far_post
