@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle, FancyArrowPatch
 
 from data_utils import bool01
@@ -57,8 +56,6 @@ def _barca_zones(corner_side: str):
             ("Box Front",        72.0, BOX_Y0, BOX_X0 - 72.0, BOX_H),
         ]
 
-ZONE_CKEYS = ["accent","accent_2","warning","success","warning","accent_2","warning","accent","muted"]
-
 # =========================================================
 # STYLE UTILS
 # =========================================================
@@ -104,7 +101,7 @@ def _traj_chart(df,theme_name,style_overrides,title,corner_side):
     fig,ax=_base_fig(s,(8,6))
     if pitch: pitch.draw(ax=ax)
     zones=_barca_zones(corner_side)
-    for (label,zx,zy,zw,zh) in zones:
+    for (_,zx,zy,zw,zh) in zones:
         ax.add_patch(Rectangle((zx,zy),zw,zh,fill=False,edgecolor="gray",alpha=0.2))
     dd=dff.dropna(subset=["x","y","x2","y2"])
     for _,r in dd.iterrows():
@@ -152,4 +149,5 @@ def compute_zone_player_stats(df, corner_side="right"):
         "Near Post": "players_near_post",
         "Small Area": "players_6yard",
         "Penalty Spot": "players_penalty",
-        "Far Post": "players_far_post
+        "Far Post": "players_far_post",
+        "Far Post Long": "players_far_post_long",
