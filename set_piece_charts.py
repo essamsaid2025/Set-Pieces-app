@@ -18,11 +18,6 @@ try:
 except Exception:
     MplsoccerPitch = None; VerticalPitch = None
 
-try:
-    from sklearn.cluster import KMeans
-except Exception:
-    KMeans = None
-
 # =========================================================
 # PITCH DIMENSIONS (100×64)
 # =========================================================
@@ -41,39 +36,31 @@ BOX_H          = BOX_Y1 - BOX_Y0   # 36.32
 # Labels updated to match requested names exactly
 # Each zone: (label, x0, y0, w, h)
 def _barca_zones(corner_side: str):
-    """
-    Return list of (label, x0, y0, w, h) for zones.
-    corner_side: 'right' (taker at bottom y≈64) or 'left' (taker at top y≈0)
-    """
-    # Order of zones is important and index-matched to ZONE_CKEYS
     if corner_side == "right":
-        # Right corner: taker at bottom (y≈64) -> Near = bottom half
         return [
-            ("Near Post Short",  BOX_X0, BOX_Y1,        BOX_W, PW - BOX_Y1),   # below box (near taker)
-            ("Near Post",        BOX_X0, SIX_Y1,         BOX_X0 - SIX_X0 + BOX_W - (BOX_X1 - SIX_X0),  BOX_Y1 - SIX_Y1),  # inner bottom strip
-            ("Small Area",       SIX_X0, GOAL_Y1,        BOX_X1 - SIX_X0,       BOX_Y1 - GOAL_Y1),      # 6yd bottom
-            ("Penalty Spot",     BOX_X0, SIX_Y0,         SIX_X0 - BOX_X0,       SIX_Y1 - SIX_Y0),       # central
-            ("Small Area",       SIX_X0, SIX_Y0,         BOX_X1 - SIX_X0,       SIX_Y1 - SIX_Y0),       # 6yd middle
-            ("Far Post",         BOX_X0, BOX_Y0,         SIX_X0 - BOX_X0,       SIX_Y0 - BOX_Y0),        # inner top strip
-            ("Small Area",       SIX_X0, BOX_Y0,         BOX_X1 - SIX_X0,       GOAL_Y0 - BOX_Y0),       # 6yd top
-            ("Far Post Long",    BOX_X0, 0.0,             BOX_W, BOX_Y0),                                  # above box (far from taker)
+            ("Near Post Short",  BOX_X0, BOX_Y1,        BOX_W, PW - BOX_Y1),
+            ("Near Post",        BOX_X0, SIX_Y1,         BOX_X0 - SIX_X0 + BOX_W - (BOX_X1 - SIX_X0),  BOX_Y1 - SIX_Y1),
+            ("Small Area",       SIX_X0, GOAL_Y1,        BOX_X1 - SIX_X0,       BOX_Y1 - GOAL_Y1),
+            ("Penalty Spot",     BOX_X0, SIX_Y0,         SIX_X0 - BOX_X0,       SIX_Y1 - SIX_Y0),
+            ("Small Area",       SIX_X0, SIX_Y0,         BOX_X1 - SIX_X0,       SIX_Y1 - SIX_Y0),
+            ("Far Post",         BOX_X0, BOX_Y0,         SIX_X0 - BOX_X0,       SIX_Y0 - BOX_Y0),
+            ("Small Area",       SIX_X0, BOX_Y0,         BOX_X1 - SIX_X0,       GOAL_Y0 - BOX_Y0),
+            ("Far Post Long",    BOX_X0, 0.0,             BOX_W, BOX_Y0),
             ("Box Front",        72.0,   BOX_Y0,          BOX_X0 - 72.0,         BOX_H),
         ]
     else:
-        # LEFT corner: taker at top → Near=top, Far=bottom (swap near/far)
         return [
-            ("Near Post Short",  BOX_X0, 0.0,             BOX_W, BOX_Y0),                                  # above box (near taker)
-            ("Near Post",        BOX_X0, BOX_Y0,          SIX_X0 - BOX_X0,       SIX_Y0 - BOX_Y0),        # inner top strip
-            ("Small Area",       SIX_X0, BOX_Y0,          BOX_X1 - SIX_X0,       GOAL_Y0 - BOX_Y0),       # 6yd top
-            ("Penalty Spot",     BOX_X0, SIX_Y0,          SIX_X0 - BOX_X0,       SIX_Y1 - SIX_Y0),        # central
-            ("Small Area",       SIX_X0, SIX_Y0,          BOX_X1 - SIX_X0,       SIX_Y1 - SIX_Y0),        # 6yd middle
-            ("Far Post",         BOX_X0, SIX_Y1,          SIX_X0 - BOX_X0,       BOX_Y1 - SIX_Y1),        # inner bottom strip
-            ("Small Area",       SIX_X0, GOAL_Y1,         BOX_X1 - SIX_X0,       BOX_Y1 - GOAL_Y1),       # 6yd bottom
-            ("Far Post Long",    BOX_X0, BOX_Y1,          BOX_W, PW - BOX_Y1),                             # below box (far from taker)
+            ("Near Post Short",  BOX_X0, 0.0,             BOX_W, BOX_Y0),
+            ("Near Post",        BOX_X0, BOX_Y0,          SIX_X0 - BOX_X0,       SIX_Y0 - BOX_Y0),
+            ("Small Area",       SIX_X0, BOX_Y0,          BOX_X1 - SIX_X0,       GOAL_Y0 - BOX_Y0),
+            ("Penalty Spot",     BOX_X0, SIX_Y0,          SIX_X0 - BOX_X0,       SIX_Y1 - SIX_Y0),
+            ("Small Area",       SIX_X0, SIX_Y0,          BOX_X1 - SIX_X0,       SIX_Y1 - SIX_Y0),
+            ("Far Post",         BOX_X0, SIX_Y1,          SIX_X0 - BOX_X0,       BOX_Y1 - SIX_Y1),
+            ("Small Area",       SIX_X0, GOAL_Y1,         BOX_X1 - SIX_X0,       BOX_Y1 - GOAL_Y1),
+            ("Far Post Long",    BOX_X0, BOX_Y1,          BOX_W, PW - BOX_Y1),
             ("Box Front",        72.0,   BOX_Y0,          BOX_X0 - 72.0,         BOX_H),
         ]
 
-# Fixed colours per zone (index-matched to above list)
 ZONE_CKEYS = ["accent","accent_2","warning","success","warning","accent_2","warning","accent","muted"]
 
 # =========================================================
@@ -86,31 +73,14 @@ CHART_REQUIREMENTS: Dict[str, List[str]] = {
     "Delivery End Scatter - Right Corner":     ["x2","y2"],
     "Delivery Trajectories - Left Corner":     ["x","y","x2","y2"],
     "Delivery Trajectories - Right Corner":    ["x","y","x2","y2"],
-    "Average Delivery Path":                   ["x","y","x2","y2"],
-    "Heat + Trajectories":                     ["x","y","x2","y2"],
-    "Trajectory Clusters":                     ["x","y","x2","y2"],
-    "Delivery Length Distribution":            ["x","y","x2","y2"],
-    "Delivery Direction Map":                  ["x","y","x2","y2"],
-    "Outcome Distribution":                    ["set_piece_type"],
-    "Target Zone Breakdown":                   ["x2","y2"],
     "Zone Delivery Count Map - Left Corner":   ["x2","y2"],
     "Zone Delivery Count Map - Right Corner":  ["x2","y2"],
-    "First Contact Win By Zone":               ["x2","y2"],
-    "Routine Breakdown":                       ["set_piece_type"],
-    "Shot Map":                                ["x","y"],
-    "Second Ball Map":                         ["x","y"],
-    "Defensive Vulnerability Map":             ["x","y"],
-    "Taker Profile":                           ["set_piece_type"],
-    "Structure Zone Averages":                 [],
-    "Set Piece Landing Heatmap":               ["x2","y2"],
-    "Taker Stats Table":                       ["taker"],
-    # new
     "Zone Player Stats":                       ["x2","y2"],
+    "Taker Stats Table":                       ["taker"],
 }
 
 # =========================================================
 # SIMPLE PITCH FALLBACK
-# (unchanged)
 # =========================================================
 class SimplePitch:
     def __init__(self, pitch_length=100, pitch_width=64, pitch_color="#1F5F3B",
@@ -161,7 +131,7 @@ class SimplePitch:
         return ax.hist2d(x,y,bins=[22,14],range=[[0,self.pl],[0,self.pw]],cmap=cmap,alpha=alpha)
 
 # =========================================================
-# STYLE UTILS (unchanged)
+# STYLE UTILS
 # =========================================================
 def resolve_style(tn, ov=None): return build_chart_style(tn, ov or {})
 
@@ -229,7 +199,7 @@ def _base_fig(s,figsize=(8,6)):
     fig.patch.set_facecolor(s["bg"]); ax.set_facecolor(s["panel"]); return fig,ax
 
 # =========================================================
-# COORDINATE SCALING (unchanged)
+# COORDINATE SCALING
 # =========================================================
 def _clean_num(df,cols):
     out=df.copy()
@@ -239,7 +209,6 @@ def _clean_num(df,cols):
 
 def _auto_scale(df):
     out=_clean_num(df.copy(),["x","y","x2","y2","x3","y3"])
-    # global y scale
     ay=pd.concat([out[c].dropna() for c in ["y","y2","y3"] if c in out.columns],ignore_index=True)
     if len(ay):
         gmy=ay.max()
@@ -247,7 +216,6 @@ def _auto_scale(df):
             ys=64.0/gmy
             for c in ["y","y2","y3"]:
                 if c in out.columns: out[c]=out[c]*ys
-    # global x scale
     ax_=pd.concat([out[c].dropna() for c in ["x","x2","x3"] if c in out.columns],ignore_index=True)
     if len(ax_):
         gmx=ax_.max()
@@ -262,7 +230,7 @@ def _auto_scale(df):
     return out
 
 # =========================================================
-# DELIVERY HELPERS (unchanged except mapping fixes)
+# DELIVERY HELPERS
 # =========================================================
 def _cmap_delivery(s):
     cm=s.get("arrow_colors",{})
@@ -272,8 +240,8 @@ def _cmap_delivery(s):
 
 def _corner_anchor(x,y):
     if pd.isna(x) or pd.isna(y): return x,y,"unknown"
-    side="right" if x>=50 else "left"
-    half="top"   if y<=32  else "bottom"
+    side="right" if float(x)>=50 else "left"
+    half="top"   if float(y)<=32  else "bottom"
     cx=99.5 if side=="right" else 0.5
     cy=0.5  if half=="top"  else 63.5
     return cx,cy,f"{side}_{half}"
@@ -312,7 +280,7 @@ def _arrow(ax,x1,y1,x2,y2,color,s,rad=0.0,lm=1.0,am=1.0):
         alpha=s["trajectory_alpha"]*am,clip_on=True,zorder=6))
 
 def get_set_piece_series(df):
-    for c in ["set_piece_type","event","outcome"]:
+    for c in ["set_piece_type","event","outcome","Type"]:
         if c in df.columns: return df[c].fillna("unknown").astype(str)
     return pd.Series(["unknown"]*len(df),index=df.index)
 
@@ -329,7 +297,6 @@ def _infer_zone(x,y):
     if y>BOX_Y1: return "far_post_long"
     if x<BOX_X0: return "box_front"
     if x>=SIX_X0:
-        if y<GOAL_Y0 or y>GOAL_Y1: return "small_area"
         return "small_area"
     if y<SIX_Y0: return "near_post"
     if y>SIX_Y1: return "far_post"
@@ -371,9 +338,8 @@ def _draw_thirds(ax,s,vertical=False):
 # TRAJECTORY CHART (left or right)
 # =========================================================
 def _traj_chart(df,theme_name,flip_y,style_overrides,title,corner_side):
-    s=resolve_style(theme_name,style_overrides); vert=s.get("pitch_vertical",False)
+    s=resolve_style(theme_name,style_overrides or {}); vert=s.get("pitch_vertical",False)
     pitch=make_pitch(s,vert); dff=_prep(df,flip_y)
-    # filter by side column in data
     if "side" in dff.columns and corner_side in ["left","right"]:
         mask=dff["side"].astype(str).str.lower()==corner_side
         if mask.any(): dff=dff[mask].copy()
@@ -393,7 +359,7 @@ def _traj_chart(df,theme_name,flip_y,style_overrides,title,corner_side):
             dl=str(dt).lower()
             for _,r in grp.iterrows():
                 rad=_curve_rad(dl,str(r.get("corner_label","unknown")))
-                # mapping corrected: for horizontal pitch x->x, y->y; for vertical swap
+                # mapping corrected: horizontal uses x/x2, vertical swaps
                 x1=r["x_start_plot"] if not vert else r["y_start_plot"]
                 y1=r["y_start_plot"] if not vert else r["x_start_plot"]
                 x2=r["x2"] if not vert else r["y2"]
@@ -417,20 +383,20 @@ def _traj_chart(df,theme_name,flip_y,style_overrides,title,corner_side):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_delivery_trajectories_left(df,tn,flip_y=False,ov=None):
-    return _traj_chart(df,tn,flip_y,ov,"Delivery Trajectories — Left Corner","left")
-def chart_delivery_trajectories_right(df,tn,flip_y=False,ov=None):
-    return _traj_chart(df,tn,flip_y,ov,"Delivery Trajectories — Right Corner","right")
+def chart_delivery_trajectories_left(df, theme_name=None, flip_y=False, style_overrides=None):
+    return _traj_chart(df, theme_name or "The Athletic Dark", flip_y, style_overrides or {}, "Delivery Trajectories — Left Corner", "left")
+
+def chart_delivery_trajectories_right(df, theme_name=None, flip_y=False, style_overrides=None):
+    return _traj_chart(df, theme_name or "The Athletic Dark", flip_y, style_overrides or {}, "Delivery Trajectories — Right Corner", "right")
 
 # =========================================================
 # DELIVERY END SCATTER  (left/right split, full pitch)
 # Fixed mapping bug so x2,y2 appear correctly; color control added
 # =========================================================
 def _scatter_chart(df,theme_name,flip_y,style_overrides,corner_side):
-    s=resolve_style(theme_name,style_overrides); vert=s.get("pitch_vertical",False)
+    s=resolve_style(theme_name,style_overrides or {}); vert=s.get("pitch_vertical",False)
     pitch=make_pitch(s,vert); dff=_prep(df,flip_y)
 
-    # filter by side
     if "side" in dff.columns and corner_side in ["left","right"]:
         mask=dff["side"].astype(str).str.lower()==corner_side
         if mask.any(): dff=dff[mask].copy()
@@ -438,7 +404,6 @@ def _scatter_chart(df,theme_name,flip_y,style_overrides,corner_side):
         mask=dff["corner_side"]==corner_side
         if mask.any(): dff=dff[mask].copy()
 
-    # Use full pitch so points are contextualised like the Ball Receiving Map
     figsize=(6,8) if vert else (10,6.5)
     fig,ax=_base_fig(s,figsize)
     pitch.draw(ax=ax); style_pitch_axes(ax,s,vert)
@@ -456,7 +421,6 @@ def _scatter_chart(df,theme_name,flip_y,style_overrides,corner_side):
     cmap=_cmap_delivery(s)
     scatter_color=s.get("scatter_dot_color",s["accent"])
 
-    # corrected mapping: horizontal -> x2,y2 ; vertical -> y2,x2
     if "delivery_type" in dd.columns and dd["delivery_type"].notna().any():
         for dt,grp in dd.groupby("delivery_type"):
             px=grp["x2"] if not vert else grp["y2"]
@@ -492,20 +456,20 @@ def _scatter_chart(df,theme_name,flip_y,style_overrides,corner_side):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_delivery_end_scatter_left(df,tn,flip_y=False,ov=None):
-    return _scatter_chart(df,tn,flip_y,ov,"left")
-def chart_delivery_end_scatter_right(df,tn,flip_y=False,ov=None):
-    return _scatter_chart(df,tn,flip_y,ov,"right")
+def chart_delivery_end_scatter_left(df, theme_name=None, flip_y=False, style_overrides=None):
+    return _scatter_chart(df, theme_name or "The Athletic Dark", flip_y, style_overrides or {}, "left")
+
+def chart_delivery_end_scatter_right(df, theme_name=None, flip_y=False, style_overrides=None):
+    return _scatter_chart(df, theme_name or "The Athletic Dark", flip_y, style_overrides or {}, "right")
 
 # =========================================================
-# ZONE DELIVERY COUNT MAP  (unchanged except small fixes)
+# ZONE DELIVERY COUNT MAP
 # =========================================================
 def _zone_count_map(df,theme_name,flip_y,style_overrides,corner_side):
-    s=resolve_style(theme_name,style_overrides)
+    s=resolve_style(theme_name,style_overrides or {})
     vert=s.get("pitch_vertical",False)
     pitch=make_pitch(s,vert); dff=_prep(df,flip_y)
 
-    # filter by corner side
     if "side" in dff.columns and corner_side in ["left","right"]:
         mask=dff["side"].astype(str).str.lower()==corner_side
         if mask.any(): dff=dff[mask].copy()
@@ -514,7 +478,6 @@ def _zone_count_map(df,theme_name,flip_y,style_overrides,corner_side):
     fig,ax=_base_fig(s,figsize)
     pitch.draw(ax=ax); style_pitch_axes(ax,s,vert)
 
-    # zoom to the attacking area
     if not vert:
         ax.set_xlim(65,102); ax.set_ylim(-2,66)
     else:
@@ -525,7 +488,6 @@ def _zone_count_map(df,theme_name,flip_y,style_overrides,corner_side):
     dd=dff.dropna(subset=["x2","y2"]).copy()
     total=max(len(dd),1)
 
-    # compute counts per zone
     zone_counts={}
     for label,zx,zy,zw,zh in zones:
         mask=(dd["x2"]>=zx)&(dd["x2"]<zx+zw)&(dd["y2"]>=zy)&(dd["y2"]<zy+zh)
@@ -535,7 +497,8 @@ def _zone_count_map(df,theme_name,flip_y,style_overrides,corner_side):
 
     for (zx,zy,zw,zh,label),cnt in zone_counts.items():
         intensity=cnt/max(max_count,1)
-        color=s.get(ZONE_CKEYS[zones.index((label,zx,zy,zw,zh))] if (label,zx,zy,zw,zh) in zones else "accent",s["accent"])
+        idx = list(zones).index((label,zx,zy,zw,zh)) if (label,zx,zy,zw,zh) in zones else 0
+        color=s.get(ZONE_CKEYS[idx] if idx < len(ZONE_CKEYS) else "accent",s["accent"])
         if vert: rx,ry,rw,rh=zy,zx,zh,zw
         else: rx,ry,rw,rh=zx,zy,zw,zh
 
@@ -551,7 +514,6 @@ def _zone_count_map(df,theme_name,flip_y,style_overrides,corner_side):
         ax.text(cx_,cy_-rh*0.30,f"{pct:.0f}%",ha="center",va="center",
                 fontsize=max(fs-1,6),color=s["muted"],zorder=4)
 
-    # avg players in box annotation (bottom of chart)
     player_cols=["players_near_post","players_far_post","players_6yard","players_penalty","players_box"]
     avg_players=None
     for c in player_cols:
@@ -561,7 +523,6 @@ def _zone_count_map(df,theme_name,flip_y,style_overrides,corner_side):
         total_in_box=len(dd[(dd["x2"]>=BOX_X0)&(dd["y2"]>=BOX_Y0)&(dd["y2"]<=BOX_Y1)])
         avg_players=round(total_in_box/max(total,1)*5,1)
 
-    # draw the circle badge
     ax.add_patch(plt.Circle((84,63),2.2,facecolor=s["danger"],edgecolor=s["pitch_lines"],linewidth=1,zorder=5))
     ax.text(84,63,f"{avg_players:.1f}",ha="center",va="center",fontsize=max(s["tick_size"],9),
             fontweight="bold",color="white",zorder=6)
@@ -573,28 +534,21 @@ def _zone_count_map(df,theme_name,flip_y,style_overrides,corner_side):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_zone_count_left(df,tn,flip_y=False,ov=None):  return _zone_count_map(df,tn,flip_y,ov,"left")
-def chart_zone_count_right(df,tn,flip_y=False,ov=None): return _zone_count_map(df,tn,flip_y,ov,"right")
+def chart_zone_count_left(df, theme_name=None, flip_y=False, style_overrides=None):
+    return _zone_count_map(df, theme_name or "The Athletic Dark", flip_y, style_overrides or {}, "left")
+
+def chart_zone_count_right(df, theme_name=None, flip_y=False, style_overrides=None):
+    return _zone_count_map(df, theme_name or "The Athletic Dark", flip_y, style_overrides or {}, "right")
 
 # =========================================================
 # ZONE PLAYER STATS (new)
-# Compute total deliveries per zone, percent, and average players (sum and mean)
 # =========================================================
 def compute_zone_player_stats(df, corner_side="right"):
-    """
-    Returns a DataFrame with columns:
-      zone_label, deliveries, pct_of_total, avg_players_in_zone
-    Logic:
-      - If explicit player columns exist (players_near_post, players_far_post, players_6yard, players_penalty, players_box),
-        use them to compute averages.
-      - Otherwise, compute deliveries per zone and estimate avg players in box using heuristic.
-    """
     dff=_prep(df.copy(), flip_y=False)
     dd=dff.dropna(subset=["x2","y2"]).copy()
     zones=_barca_zones(corner_side)
     total=len(dd)
     rows=[]
-    # try to find per-zone player columns mapping by name
     player_cols = {
         "Near Post Short": "players_near_post_short",
         "Near Post": "players_near_post",
@@ -604,7 +558,6 @@ def compute_zone_player_stats(df, corner_side="right"):
         "Far Post Long": "players_far_post_long",
         "Box Front": "players_box_front",
     }
-    # detect available player columns
     available_player_cols = {k:v for k,v in player_cols.items() if v in dd.columns}
 
     for label,zx,zy,zw,zh in zones:
@@ -612,15 +565,12 @@ def compute_zone_player_stats(df, corner_side="right"):
         cnt=int(mask.sum())
         pct = (cnt/total*100) if total>0 else 0.0
         avg_players=None
-        # if explicit column exists for this label, use mean
         if label in available_player_cols:
             col = available_player_cols[label]
             avg_players = float(dd.loc[mask, col].mean()) if cnt>0 else 0.0
         rows.append({"zone_label": label, "deliveries": cnt, "pct_of_total": pct, "avg_players_in_zone": avg_players})
     df_stats = pd.DataFrame(rows)
-    # if avg_players_in_zone all None, compute an overall avg players in box
     if df_stats["avg_players_in_zone"].isna().all():
-        # try players_box or players_in_box
         if "players_box" in dd.columns:
             overall_avg = float(dd["players_box"].mean())
         else:
@@ -629,18 +579,14 @@ def compute_zone_player_stats(df, corner_side="right"):
         df_stats["avg_players_in_zone"] = overall_avg
     return df_stats
 
-def chart_zone_player_stats(df, theme_name, flip_y=False, style_overrides=None, corner_side="right"):
-    s=resolve_style(theme_name, style_overrides or {})
-    vert=s.get("pitch_vertical",False)
+def chart_zone_player_stats(df, theme_name=None, flip_y=False, style_overrides=None, corner_side="right"):
+    s=resolve_style(theme_name or "The Athletic Dark", style_overrides or {})
     stats = compute_zone_player_stats(df, corner_side=corner_side)
-    # create a compact figure showing numbers similar to second pic
     fig,ax=_base_fig(s,(6,6))
     ax.set_facecolor(s["panel"])
     ax.axis("off")
-    # layout: two columns of zones + big badge for avg players in box
     left = stats.iloc[:5]
     right = stats.iloc[5:]
-    # text positions
     start_y = 0.85
     dy = 0.14
     x_left = 0.12
@@ -652,7 +598,6 @@ def chart_zone_player_stats(df, theme_name, flip_y=False, style_overrides=None, 
     for i, row in right.reset_index().iterrows():
         ax.text(x_right, start_y - i*dy, f"{row['zone_label']}: {int(row['deliveries'])}", fontsize=fs, color=s["text"], transform=fig.transFigure)
         ax.text(x_right+0.28, start_y - i*dy, f"{row['pct_of_total']:.0f}%", fontsize=fs-2, color=s["muted"], transform=fig.transFigure)
-    # big badge: average players in box (use mean of avg_players_in_zone)
     avg_players = stats["avg_players_in_zone"].mean()
     ax.add_patch(plt.Circle((0.85,0.25),0.08,transform=fig.transFigure,facecolor=s["danger"],edgecolor=s["pitch_lines"],linewidth=1))
     ax.text(0.85,0.25,f"{avg_players:.1f}",ha="center",va="center",fontsize=fs+2,color="white",transform=fig.transFigure)
@@ -662,10 +607,10 @@ def chart_zone_player_stats(df, theme_name, flip_y=False, style_overrides=None, 
     return fig
 
 # =========================================================
-# REMAINING STANDARD CHARTS (unchanged except mapping fix in start map)
+# DELIVERY START MAP
 # =========================================================
-def chart_delivery_start_map(df,tn,flip_y=False,ov=None):
-    s=resolve_style(tn,ov); vert=s.get("pitch_vertical",False)
+def chart_delivery_start_map(df, theme_name=None, flip_y=False, style_overrides=None):
+    s=resolve_style(theme_name or "The Athletic Dark", style_overrides or {}); vert=s.get("pitch_vertical",False)
     pitch=make_pitch(s,vert); dff=_prep(df,flip_y)
     fig,ax=_base_fig(s,(6,8) if vert else (8,6))
     pitch.draw(ax=ax); style_pitch_axes(ax,s,vert)
@@ -679,22 +624,9 @@ def chart_delivery_start_map(df,tn,flip_y=False,ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-# (other chart functions like heatmap left as-is or truncated for brevity)
-# You should keep the rest of your original chart functions here unchanged.
-# Ensure CHART_BUILDERS mapping in your app imports the new functions names:
-# e.g. CHART_BUILDERS = {
-#   "Delivery Trajectories - Left Corner": chart_delivery_trajectories_left,
-#   "Delivery Trajectories - Right Corner": chart_delivery_trajectories_right,
-#   "Delivery End Scatter - Left Corner": chart_delivery_end_scatter_left,
-#   "Delivery End Scatter - Right Corner": chart_delivery_end_scatter_right,
-#   "Zone Player Stats": chart_zone_player_stats,
-#   ...
-# }
-    # ──────────────────────────────────────────────────────────────────────────────
+# =========================================================
 # Export mapping used by the Streamlit app
-# Ensure every name here points to a real function defined above.
-# Add or remove entries to match the charts your app supports.
-# ──────────────────────────────────────────────────────────────────────────────
+# =========================================================
 CHART_BUILDERS = {
     "Delivery Trajectories - Left Corner": chart_delivery_trajectories_left,
     "Delivery Trajectories - Right Corner": chart_delivery_trajectories_right,
@@ -705,5 +637,4 @@ CHART_BUILDERS = {
     "Zone Player Stats - Left Corner": lambda df, **kw: chart_zone_player_stats(df, corner_side="left", **kw),
     "Zone Player Stats - Right Corner": lambda df, **kw: chart_zone_player_stats(df, corner_side="right", **kw),
     "Delivery Start Map": chart_delivery_start_map,
-    # add other chart name → function mappings here if you use them in the app
 }
