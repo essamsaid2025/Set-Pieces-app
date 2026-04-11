@@ -75,6 +75,9 @@ THEMES = {
 
 FONT_FAMILIES = [
     "DejaVu Sans",
+    "Roboto Slab",
+    "Roboto Slab Light",
+    "Roboto Slab Bold",
     "Arial",
     "Helvetica",
     "Verdana",
@@ -146,17 +149,12 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         "pitch_pad_y": controls.get("pitch_pad_y", 2),
         "export_dpi": controls.get("export_dpi", 260),
         "heatmap_cmap": controls.get("heatmap_cmap", "Blues"),
-        # ── Pitch layout ─────────────────────────────────
         "pitch_vertical": controls.get("pitch_vertical", False),
-        "show_thirds":    controls.get("show_thirds",    False),
-        # ── Scatter dot colour ────────────────────────────
+        "show_thirds": controls.get("show_thirds", False),
         "scatter_dot_color": controls.get("scatter_dot_color", base["accent"]),
-        # ── Arrow colours (per delivery type) ────────────
         "arrow_colors": controls.get("arrow_colors", {}),
-        # ── Bar chart colours ─────────────────────────────
         "bar_colors": controls.get("bar_colors", {}),
-        # ── Shirt mockup colours ──────────────────────────
-        "shirt_body_color":   controls.get("shirt_body_color",   base["accent"]),
+        "shirt_body_color": controls.get("shirt_body_color", base["accent"]),
         "shirt_sleeve_color": controls.get("shirt_sleeve_color", base["panel"]),
         "shirt_number_color": controls.get("shirt_number_color", base["bg"]),
     }
@@ -166,6 +164,8 @@ def inject_styles():
     st.markdown(
         """
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300;400;700&display=swap');
+
             :root {
                 --bg: #0b1220;
                 --card: #111827;
@@ -173,10 +173,19 @@ def inject_styles():
                 --border: #243041;
                 --text: #f3f4f6;
                 --muted: #9ca3af;
+                --accent: #38bdf8;
+                --accent-2: #22c55e;
+                --input-bg: #f8fafc;
+                --input-text: #0f172a;
+                --sidebar-input-bg: #111827;
+                --sidebar-input-text: #f8fafc;
             }
 
             .stApp {
-                background: linear-gradient(180deg, #09111f 0%, #0b1220 100%);
+                background:
+                    radial-gradient(circle at top left, rgba(56,189,248,0.14), transparent 28%),
+                    radial-gradient(circle at top right, rgba(34,197,94,0.10), transparent 24%),
+                    linear-gradient(180deg, #09111f 0%, #0b1220 48%, #0a1324 100%);
                 color: var(--text);
             }
 
@@ -189,11 +198,17 @@ def inject_styles():
             }
 
             [data-testid="stSidebar"] {
-                background: #0f172a !important;
+                background:
+                    linear-gradient(180deg, rgba(15,23,42,0.98), rgba(9,17,31,0.98)) !important;
+                border-right: 1px solid rgba(148, 163, 184, 0.14);
             }
 
             [data-testid="stSidebar"] * {
                 color: #f8fafc !important;
+            }
+
+            [data-testid="stSidebar"] .block-container {
+                padding-top: 1rem;
             }
 
             [data-testid="stSidebar"] div[data-baseweb="select"] > div,
@@ -201,9 +216,75 @@ def inject_styles():
             [data-testid="stSidebar"] .stTextInput > div > div,
             [data-testid="stSidebar"] .stNumberInput > div > div,
             [data-testid="stSidebar"] .stColorPicker > div > div {
-                background: #111827 !important;
-                color: #f8fafc !important;
+                background: var(--sidebar-input-bg) !important;
+                color: var(--sidebar-input-text) !important;
                 border: 1px solid #334155 !important;
+                border-radius: 12px !important;
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+            }
+
+            div[data-baseweb="select"] > div,
+            div[data-baseweb="input"] > div,
+            .stTextInput > div > div,
+            .stNumberInput > div > div,
+            .stTextArea textarea {
+                background: var(--input-bg) !important;
+                color: var(--input-text) !important;
+                border: 1px solid #cbd5e1 !important;
+                border-radius: 12px !important;
+            }
+
+            div[data-baseweb="select"] span,
+            div[data-baseweb="select"] input,
+            div[data-baseweb="input"] input,
+            .stTextInput input,
+            .stNumberInput input,
+            .stTextArea textarea {
+                color: var(--input-text) !important;
+                -webkit-text-fill-color: var(--input-text) !important;
+            }
+
+            div[data-baseweb="select"] svg,
+            div[data-baseweb="input"] svg {
+                fill: #334155 !important;
+            }
+
+            [data-baseweb="popover"] *,
+            [role="listbox"] *,
+            ul[role="listbox"] * {
+                color: #0f172a !important;
+            }
+
+            [data-baseweb="popover"] {
+                background: #ffffff !important;
+                border: 1px solid #cbd5e1 !important;
+                border-radius: 14px !important;
+                box-shadow: 0 20px 45px rgba(15, 23, 42, 0.22) !important;
+            }
+
+            [role="option"] {
+                background: #ffffff !important;
+                color: #0f172a !important;
+            }
+
+            [role="option"][aria-selected="true"] {
+                background: #e0f2fe !important;
+                color: #0f172a !important;
+            }
+
+            [role="option"]:hover {
+                background: #eff6ff !important;
+                color: #0f172a !important;
+            }
+
+            .stMultiSelect [data-baseweb="tag"] {
+                background: rgba(56, 189, 248, 0.14) !important;
+                border: 1px solid rgba(56, 189, 248, 0.24) !important;
+                border-radius: 999px !important;
+            }
+
+            .stMultiSelect [data-baseweb="tag"] * {
+                color: #0f172a !important;
             }
 
             h1, h2, h3, h4, h5, h6, p, span, div, label {
@@ -211,12 +292,25 @@ def inject_styles():
             }
 
             .app-header {
-                background: linear-gradient(135deg, rgba(56,189,248,0.16), rgba(16,185,129,0.10));
-                border: 1px solid rgba(255,255,255,0.08);
-                padding: 20px 22px;
-                border-radius: 22px;
-                margin-bottom: 18px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+                background:
+                    linear-gradient(135deg, rgba(56,189,248,0.18), rgba(16,185,129,0.10)),
+                    rgba(15, 23, 42, 0.88);
+                border: 1px solid rgba(255,255,255,0.10);
+                padding: 24px 26px;
+                border-radius: 24px;
+                margin-bottom: 20px;
+                box-shadow: 0 18px 40px rgba(0,0,0,0.24);
+                position: relative;
+                overflow: hidden;
+            }
+
+            .app-header::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background:
+                    linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.05) 45%, transparent 100%);
+                pointer-events: none;
             }
 
             .app-title {
@@ -224,6 +318,7 @@ def inject_styles():
                 font-weight: 800;
                 margin: 0;
                 line-height: 1.08;
+                letter-spacing: -0.03em;
             }
 
             .app-subtitle {
@@ -233,11 +328,12 @@ def inject_styles():
             }
 
             .panel-card {
-                background: rgba(17,24,39,0.92);
-                border: 1px solid var(--border);
-                border-radius: 18px;
+                background:
+                    linear-gradient(180deg, rgba(17,24,39,0.94), rgba(12,18,31,0.96));
+                border: 1px solid rgba(148,163,184,0.14);
+                border-radius: 20px;
                 padding: 16px 16px 10px 16px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+                box-shadow: 0 14px 34px rgba(0,0,0,0.22);
                 margin-bottom: 14px;
             }
 
@@ -256,12 +352,13 @@ def inject_styles():
             }
 
             .preview-shell {
-                background: rgba(17,24,39,0.92);
-                border: 1px solid var(--border);
-                border-radius: 18px;
-                padding: 16px;
+                background:
+                    linear-gradient(180deg, rgba(17,24,39,0.94), rgba(12,18,31,0.96));
+                border: 1px solid rgba(148,163,184,0.14);
+                border-radius: 22px;
+                padding: 18px;
                 min-height: 70vh;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+                box-shadow: 0 16px 40px rgba(0,0,0,0.24);
             }
 
             .preview-placeholder {
@@ -277,11 +374,12 @@ def inject_styles():
             .stButton > button,
             .stDownloadButton > button {
                 width: 100%;
-                border-radius: 12px;
+                border-radius: 14px;
                 border: 1px solid #2d3b50;
                 color: white;
                 font-weight: 700;
                 padding: 0.6rem 1rem;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
             }
 
             .stButton > button {
@@ -289,15 +387,17 @@ def inject_styles():
             }
 
             .stDownloadButton > button {
-                background: #162235;
+                background: linear-gradient(135deg, #162235, #1e293b);
             }
 
             .small-kpi {
-                background: rgba(15,23,42,0.85);
-                border: 1px solid #243041;
-                border-radius: 14px;
-                padding: 12px;
+                background:
+                    linear-gradient(180deg, rgba(15,23,42,0.90), rgba(10,15,27,0.92));
+                border: 1px solid rgba(148,163,184,0.14);
+                border-radius: 16px;
+                padding: 13px 12px;
                 text-align: center;
+                box-shadow: 0 12px 24px rgba(0,0,0,0.16);
             }
 
             .small-kpi .label {
@@ -308,7 +408,7 @@ def inject_styles():
 
             .small-kpi .value {
                 color: #ffffff;
-                font-size: 1.1rem;
+                font-size: 1.14rem;
                 font-weight: 800;
             }
         </style>
