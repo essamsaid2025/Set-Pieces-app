@@ -575,7 +575,6 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
         ax.set_xlim(-2, 66)
         ax.set_ylim(65, 103)
 
-    dd = dff.copy()
     zones = _barca_zones(corner_side)
     zone_labels = [z[0] for z in zones]
 
@@ -592,6 +591,7 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
             "far post long": "Far Post\nLong",
             "long": "Far Post\nLong",
             "small area": "Small\nArea",
+            "smallarea": "Small\nArea",
             "6 yard": "Small\nArea",
             "six yard": "Small\nArea",
             "penalty spot": "Penalty\nSpot",
@@ -602,13 +602,13 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
 
     counts = {label: 0 for label in zone_labels}
 
-    if "target_zone" in dd.columns and dd["target_zone"].notna().any():
-        for val in dd["target_zone"].dropna():
+    if "target_zone" in dff.columns and dff["target_zone"].notna().any():
+        for val in dff["target_zone"].dropna():
             zone_label = _normalize_zone_label(val)
             if zone_label in counts:
                 counts[zone_label] += 1
     else:
-        dd_xy = dd.dropna(subset=["x2", "y2"]).copy()
+        dd_xy = dff.dropna(subset=["x2", "y2"]).copy()
         for label, zx, zy, zw, zh in zones:
             mask = (
                 (dd_xy["x2"] >= zx) & (dd_xy["x2"] < zx + zw) &
@@ -686,28 +686,30 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
                 zorder=7,
             )
 
-    player_cols = [
-        c for c in [
-            "players_near_post",
-            "players_far_post",
-            "players_small area",
-            "players_penalty area",
-        ]
-        if c in dff.columns
+    # Average players in box:
+    # near post + far post + small area + penalty area, then average across rows
+    player_col_options = [
+        ("players_near_post",),
+        ("players_far_post",),
+        ("players_small_area", "players_small area"),
+        ("players_penalty_area", "players_penalty area"),
     ]
 
-    avg = None
-    if player_cols:
-        player_frame = dff[player_cols].apply(pd.to_numeric, errors="coerce")
+    selected_cols = []
+    for options in player_col_options:
+        found = next((col for col in options if col in dff.columns), None)
+        if found:
+            selected_cols.append(found)
+
+    avg = 0.0
+    if len(selected_cols) == 4:
+        player_frame = dff[selected_cols].apply(pd.to_numeric, errors="coerce")
         valid_rows = player_frame.notna().any(axis=1)
         if valid_rows.any():
-            avg = round(player_frame.loc[valid_rows].fillna(0).sum(axis=1).mean(), 1)
+            row_totals = player_frame.loc[valid_rows].fillna(0).sum(axis=1)
+            avg = round(row_totals.mean(), 1)
 
-    if avg is None:
-        avg = 0.0
-
-    # Adjusted position: outside the box and centered over the arc
-    bx_, by_ = (32.0, 78.5) if vert else (91.5, 57.8)
+    bx_, by_ = (32.0, 76.5) if vert else (91.5, 54.8)
 
     ax.add_patch(
         plt.Circle(
