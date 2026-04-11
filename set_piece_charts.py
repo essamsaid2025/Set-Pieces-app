@@ -979,56 +979,223 @@ def chart_structure_zone_averages(df, tn, flip_y=False, ov=None):
 def chart_taker_stats_table(df, tn, flip_y=False, ov=None):
     s = resolve_style(tn, ov)
     if "taker" not in df.columns:
-        fig,ax=_base_fig(s,(9,4)); ax.text(0.5,0.5,"No 'taker' column",ha="center",va="center",color=s["text"],fontsize=12,transform=ax.transAxes); return fig
-    rows=[]
-    for taker,grp in df.groupby("taker"):
-        if str(taker).lower() in ("nan","none",""): continue
-        ns=int(grp["sequence_id"].nunique()) if "sequence_id" in grp.columns else len(grp)
-        ni=int((grp["delivery_type"].astype(str).str.lower()=="inswing").sum()) if "delivery_type" in grp.columns else 0
-        no=int((grp["delivery_type"].astype(str).str.lower()=="outswing").sum()) if "delivery_type" in grp.columns else 0
-        nsu=int((grp["outcome"].astype(str).str.lower().isin(["successful","success","won"])).sum()) if "outcome" in grp.columns else 0
-        sr=round(nsu/max(len(grp),1)*100,1)
-        nl=int((grp["side"].astype(str).str.lower()=="left").sum()) if "side" in grp.columns else 0
-        nr=int((grp["side"].astype(str).str.lower()=="right").sum()) if "side" in grp.columns else 0
-        rows.append({"taker":str(taker).title(),"sequences":ns,"inswing":ni,"outswing":no,"left":nl,"right":nr,"success_rate":sr})
+        fig, ax = _base_fig(s, (9, 4))
+        ax.text(
+            0.5, 0.5, "No 'taker' column",
+            ha="center", va="center",
+            color=s["text"], fontsize=12,
+            transform=ax.transAxes
+        )
+        return fig
+
+    def _shirt_number_label(value):
+        text = str(value).strip()
+        try:
+            num = float(text)
+            return str(int(num)) if num.is_integer() else text
+        except Exception:
+            return text
+
+    rows = []
+    for taker, grp in df.groupby("taker"):
+        if str(taker).lower() in ("nan", "none", ""):
+            continue
+
+        ns = int(grp["sequence_id"].nunique()) if "sequence_id" in grp.columns else len(grp)
+        ni = int((grp["delivery_type"].astype(str).str.lower() == "inswing").sum()) if "delivery_type" in grp.columns else 0
+        no = int((grp["delivery_type"].astype(str).str.lower() == "outswing").sum()) if "delivery_type" in grp.columns else 0
+        nsu = int((grp["outcome"].astype(str).str.lower().isin(["successful", "success", "won"])).sum()) if "outcome" in grp.columns else 0
+        sr = round(nsu / max(len(grp), 1) * 100, 1)
+        nl = int((grp["side"].astype(str).str.lower() == "left").sum()) if "side" in grp.columns else 0
+        nr = int((grp["side"].astype(str).str.lower() == "right").sum()) if "side" in grp.columns else 0
+
+        rows.append({
+            "taker": str(taker).title(),
+            "shirt_number": _shirt_number_label(taker),
+            "sequences": ns,
+            "inswing": ni,
+            "outswing": no,
+            "left": nl,
+            "right": nr,
+            "success_rate": sr,
+        })
+
     if not rows:
-        fig,ax=_base_fig(s,(9,4)); ax.text(0.5,0.5,"No taker data",ha="center",va="center",color=s["text"],fontsize=12,transform=ax.transAxes); return fig
-    sdf=pd.DataFrame(rows).sort_values("sequences",ascending=False).head(12).reset_index(drop=True)
-    n=len(sdf); row_h=0.72; hh=1.0; fw=9.5; fh=hh+n*row_h+0.4
+        fig, ax = _base_fig(s, (9, 4))
+        ax.text(
+            0.5, 0.5, "No taker data",
+            ha="center", va="center",
+            color=s["text"], fontsize=12,
+            transform=ax.transAxes
+        )
+        return fig
+
+    sdf = pd.DataFrame(rows).sort_values("sequences", ascending=False).head(12).reset_index(drop=True)
+
+    n = len(sdf)
+    row_h = 0.72
+    hh = 1.0
+    fw = 9.5
+    fh = hh + n * row_h + 0.4
+
     apply_rcparams(s)
-    fig=plt.figure(figsize=(fw,fh)); fig.patch.set_facecolor(s["bg"])
-    ax=fig.add_axes([0,0,1,1]); ax.set_xlim(0,fw); ax.set_ylim(0,fh)
-    ax.set_facecolor(s["bg"]); ax.axis("off")
-    bc_s=s.get("shirt_body_color",s["accent"]); sl_c=s.get("shirt_sleeve_color",s["panel"]); nm_c=s.get("shirt_number_color",s["bg"])
-    mw=2.2
-    ax.text(fw/2,fh-0.28,"Set Piece Taker Stats",ha="center",va="top",fontsize=s["title_size"]+2,fontweight="bold",color=s["text"])
-    ax.text(fw/2,fh-0.62,"Sorted by number of set piece sequences taken",ha="center",va="top",fontsize=s["tick_size"],color=s["muted"])
-    cx={"shirt":0.40,"name":1.05,"seq":3.55,"ins":4.40,"out":5.25,"left":6.05,"right":6.85,"rate":7.80}
-    hy=fh-hh+0.05
-    for k,lbl in {"seq":"SEQ","ins":"INSWING","out":"OUTSWING","left":"LEFT","right":"RIGHT","rate":"SUCCESS %"}.items():
-        ax.text(cx[k],hy,lbl,ha="center",va="bottom",fontsize=s["tick_size"]-1,color=s["muted"],fontweight="bold")
-    ax.axhline(hy-0.02,xmin=0.02,xmax=0.98,color=s["lines"],linewidth=0.8,alpha=0.6)
-    for i,row in sdf.iterrows():
-        yc=fh-hh-(i+0.5)*row_h
-        if i%2==0: ax.add_patch(Rectangle((0.1,yc-row_h/2+0.04),fw-0.2,row_h-0.08,facecolor=s["panel"],edgecolor="none",alpha=0.35,zorder=0))
-        sz=row_h*0.78; bx=cx["shirt"]-sz*0.55/2; by=yc-sz*0.65/2-sz*0.04
-        ax.add_patch(FancyBboxPatch((bx,by),sz*0.55,sz*0.65,boxstyle="round,pad=0.01",facecolor=bc_s,edgecolor=s["lines"],linewidth=0.6,zorder=4))
-        ax.add_patch(FancyBboxPatch((bx-sz*0.22,by+sz*0.65*0.62),sz*0.22,sz*0.28*0.7,boxstyle="round,pad=0.01",facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=4))
-        ax.add_patch(FancyBboxPatch((bx+sz*0.55,by+sz*0.65*0.62),sz*0.22,sz*0.28*0.7,boxstyle="round,pad=0.01",facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=4))
-        ax.add_patch(plt.Circle((cx["shirt"],by+sz*0.65-sz*0.09*0.3),sz*0.09,facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=5))
-        ax.text(cx["shirt"],by+sz*0.65*0.38,str(row["sequences"]),ha="center",va="center",fontsize=max(s["tick_size"]-1,7),fontweight="bold",color=nm_c,zorder=6)
-        ax.text(cx["name"],yc,row["taker"],ha="left",va="center",fontsize=s["tick_size"]+0.5,fontweight="bold",color=s["text"])
-        for k in ["seq","ins","out","left","right"]:
-            v={"seq":row["sequences"],"ins":row["inswing"],"out":row["outswing"],"left":row["left"],"right":row["right"]}[k]
-            ax.text(cx[k],yc,str(v),ha="center",va="center",fontsize=s["tick_size"],color=s["text"])
-        rate=row["success_rate"]/100.0; bx_=cx["rate"]-mw/2; bh=row_h*0.30
-        ax.add_patch(Rectangle((bx_,yc-bh/2),mw,bh,facecolor=s["lines"],edgecolor="none",alpha=0.35,zorder=1))
-        bfc=s.get("bar_colors",{}).get("default",s["accent"])
-        ax.add_patch(Rectangle((bx_,yc-bh/2),mw*rate,bh,facecolor=bfc,edgecolor="none",alpha=0.90,zorder=2))
-        ax.text(bx_+mw*rate+0.06,yc,f"{row['success_rate']:.1f}%",ha="left",va="center",fontsize=s["tick_size"]-1,color=s["text"])
-        ax.axhline(yc-row_h/2+0.04,xmin=0.02,xmax=0.98,color=s["lines"],linewidth=0.4,alpha=0.3)
-    if s["tight_layout"]: fig.tight_layout(pad=0.3)
+    fig = plt.figure(figsize=(fw, fh))
+    fig.patch.set_facecolor(s["bg"])
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, fw)
+    ax.set_ylim(0, fh)
+    ax.set_facecolor(s["bg"])
+    ax.axis("off")
+
+    bc_s = s.get("shirt_body_color", s["accent"])
+    sl_c = s.get("shirt_sleeve_color", s["panel"])
+    nm_c = s.get("shirt_number_color", s["bg"])
+
+    mw = 1.55
+
+    ax.text(
+        fw / 2, fh - 0.28, "Set Piece Taker Stats",
+        ha="center", va="top",
+        fontsize=s["title_size"] + 2,
+        fontweight="bold", color=s["text"]
+    )
+    ax.text(
+        fw / 2, fh - 0.62, "Sorted by number of set piece sequences taken",
+        ha="center", va="top",
+        fontsize=s["tick_size"], color=s["muted"]
+    )
+
+    cx = {
+        "shirt": 0.55,
+        "seq": 3.10,
+        "ins": 4.00,
+        "out": 4.95,
+        "left": 5.85,
+        "right": 6.55,
+        "rate": 7.95,
+    }
+
+    hy = fh - hh + 0.05
+    for k, lbl in {
+        "seq": "SEQ",
+        "ins": "INSWING",
+        "out": "OUTSWING",
+        "left": "LEFT",
+        "right": "RIGHT",
+        "rate": "SUCCESS %",
+    }.items():
+        ax.text(
+            cx[k], hy, lbl,
+            ha="center", va="bottom",
+            fontsize=s["tick_size"] - 1,
+            color=s["muted"], fontweight="bold"
+        )
+
+    ax.axhline(hy - 0.02, xmin=0.02, xmax=0.98, color=s["lines"], linewidth=0.8, alpha=0.6)
+
+    for i, row in sdf.iterrows():
+        yc = fh - hh - (i + 0.5) * row_h
+
+        if i % 2 == 0:
+            ax.add_patch(
+                Rectangle(
+                    (0.1, yc - row_h / 2 + 0.04),
+                    fw - 0.2,
+                    row_h - 0.08,
+                    facecolor=s["panel"],
+                    edgecolor="none",
+                    alpha=0.35,
+                    zorder=0,
+                )
+            )
+
+        sz = row_h * 0.78
+        bx = cx["shirt"] - sz * 0.55 / 2
+        by = yc - sz * 0.65 / 2 - sz * 0.04
+
+        ax.add_patch(FancyBboxPatch(
+            (bx, by), sz * 0.55, sz * 0.65,
+            boxstyle="round,pad=0.01",
+            facecolor=bc_s, edgecolor=s["lines"],
+            linewidth=0.6, zorder=4
+        ))
+        ax.add_patch(FancyBboxPatch(
+            (bx - sz * 0.22, by + sz * 0.65 * 0.62),
+            sz * 0.22, sz * 0.28 * 0.7,
+            boxstyle="round,pad=0.01",
+            facecolor=sl_c, edgecolor=s["lines"],
+            linewidth=0.5, zorder=4
+        ))
+        ax.add_patch(FancyBboxPatch(
+            (bx + sz * 0.55, by + sz * 0.65 * 0.62),
+            sz * 0.22, sz * 0.28 * 0.7,
+            boxstyle="round,pad=0.01",
+            facecolor=sl_c, edgecolor=s["lines"],
+            linewidth=0.5, zorder=4
+        ))
+        ax.add_patch(plt.Circle(
+            (cx["shirt"], by + sz * 0.65 - sz * 0.09 * 0.3),
+            sz * 0.09,
+            facecolor=sl_c, edgecolor=s["lines"],
+            linewidth=0.5, zorder=5
+        ))
+
+        ax.text(
+            cx["shirt"], by + sz * 0.65 * 0.38, str(row["shirt_number"]),
+            ha="center", va="center",
+            fontsize=max(s["tick_size"] - 1, 7),
+            fontweight="bold", color=nm_c, zorder=6
+        )
+
+        for k in ["seq", "ins", "out", "left", "right"]:
+            v = {
+                "seq": row["sequences"],
+                "ins": row["inswing"],
+                "out": row["outswing"],
+                "left": row["left"],
+                "right": row["right"],
+            }[k]
+            ax.text(
+                cx[k], yc, str(v),
+                ha="center", va="center",
+                fontsize=s["tick_size"], color=s["text"]
+            )
+
+        rate = row["success_rate"] / 100.0
+        bx_ = cx["rate"] - mw / 2
+        bh = row_h * 0.30
+
+        ax.add_patch(Rectangle(
+            (bx_, yc - bh / 2), mw, bh,
+            facecolor=s["lines"], edgecolor="none",
+            alpha=0.35, zorder=1
+        ))
+
+        bfc = s.get("bar_colors", {}).get("default", s["accent"])
+        ax.add_patch(Rectangle(
+            (bx_, yc - bh / 2), mw * rate, bh,
+            facecolor=bfc, edgecolor="none",
+            alpha=0.90, zorder=2
+        ))
+
+        ax.text(
+            bx_ + mw + 0.08, yc, f"{row['success_rate']:.1f}%",
+            ha="left", va="center",
+            fontsize=s["tick_size"] - 1,
+            color=s["text"]
+        )
+
+        ax.axhline(
+            yc - row_h / 2 + 0.04,
+            xmin=0.02, xmax=0.98,
+            color=s["lines"], linewidth=0.4, alpha=0.3
+        )
+
+    if s["tight_layout"]:
+        fig.tight_layout(pad=0.3)
+
     return fig
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REGISTRY
