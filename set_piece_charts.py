@@ -560,29 +560,39 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
 
     if "side" in dff.columns:
         mask = dff["side"].astype(str).str.lower() == corner_side
-        if mask.any(): dff = dff[mask].copy()
+        if mask.any():
+            dff = dff[mask].copy()
 
     figsize = (6, 7) if vert else (9, 6)
     fig, ax = _base_fig(s, figsize)
     pitch.draw(ax=ax)
     _setup_pitch_axes(ax, s, vert)
 
-    # zoom to attacking area
-    if not vert: ax.set_xlim(65, 103); ax.set_ylim(-2, 66)
-    else:        ax.set_xlim(-2, 66);  ax.set_ylim(65, 103)
+    if not vert:
+        ax.set_xlim(65, 103)
+        ax.set_ylim(-2, 66)
+    else:
+        ax.set_xlim(-2, 66)
+        ax.set_ylim(65, 103)
 
-    dd    = dff.dropna(subset=["x2","y2"]).copy()
+    dd = dff.dropna(subset=["x2", "y2"]).copy()
     total = max(len(dd), 1)
     zones = _barca_zones(corner_side)
 
     counts = {}
     for label, zx, zy, zw, zh in zones:
-        mask = (dd["x2"] >= zx) & (dd["x2"] < zx+zw) & (dd["y2"] >= zy) & (dd["y2"] < zy+zh)
+        mask = (
+            (dd["x2"] >= zx) & (dd["x2"] < zx + zw) &
+            (dd["y2"] >= zy) & (dd["y2"] < zy + zh)
+        )
         counts[(label, zx, zy, zw, zh)] = int(mask.sum())
-    max_cnt = max(counts.values()) if counts else 1
-    heat_cmap = plt.cm.Reds
 
-    for (label, zx, zy, zw, zh), ck in zip(zones, ZONE_CKEYS):
+    max_cnt = max(counts.values()) if counts else 1
+
+    low_red = np.array(mpl.colors.to_rgb("#2b0a0a"))
+    high_red = np.array(mpl.colors.to_rgb("#ff3b30"))
+
+    for label, zx, zy, zw, zh in zones:
         cnt = counts[(label, zx, zy, zw, zh)]
         inten = cnt / max(max_cnt, 1)
 
@@ -591,93 +601,140 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
         else:
             rx, ry, rw, rh = zx, zy, zw, zh
 
-    # Stronger heat-map look: low counts are dark, high counts are bright red
-        heat_color = heat_cmap(0.18 + 0.78 * inten)
+        rgb = low_red * (1.0 - inten) + high_red * inten
 
         ax.add_patch(
             Rectangle(
                 (rx, ry), rw, rh,
-                facecolor=heat_color,
+                facecolor=rgb,
                 edgecolor=s["pitch_lines"],
                 linewidth=0.8,
-                alpha=0.18 + inten * 0.62,
-                zorder=1,
-             )
+                alpha=0.78,
+                zorder=3,
+            )
         )
 
         cx_ = rx + rw / 2
         cy_ = ry + rh / 2
         pct = cnt / total * 100
         fs = max(s["tick_size"] - 1, 7)
-        is_box_front = label.replace("\n", " ") == "Box Front"
+        label_text = label.replace("\n", " ")
+        is_box_front = label_text == "Box Front"
 
         ax.text(
-            cx_, cy_ + rh * 0.20,
-            label.replace("\n", " "),
-            ha="center", va="center",
+            cx_,
+            cy_ + rh * (0.18 if not is_box_front else 0.08),
+            label_text,
+            ha="center",
+            va="center",
             fontsize=max(fs - 1, 5),
-            color=s["muted"], alpha=0.9, zorder=3
+            color=s["muted"],
+            alpha=0.92,
+            zorder=6,
         )
 
         if not is_box_front:
             ax.text(
-                cx_, cy_ - rh * 0.05, str(cnt),
-                ha="center", va="center",
+                cx_,
+                cy_ - rh * 0.03,
+                str(cnt),
+                ha="center",
+                va="center",
                 fontsize=max(fs + 3, 10),
-                fontweight="bold", color=s["text"], zorder=4
+                fontweight="bold",
+                color=s["text"],
+                zorder=7,
             )
             ax.text(
-                cx_, cy_ - rh * 0.28, f"{pct:.0f}%",
-                ha="center", va="center",
+                cx_,
+                cy_ - rh * 0.26,
+                f"{pct:.0f}%",
+                ha="center",
+                va="center",
                 fontsize=max(fs - 1, 6),
-                color=s["muted"], zorder=4
+                color=s["muted"],
+                zorder=7,
             )
 
-# avg-players badge
-    cols = ["players_near_post", "players_far_post", "players_6yard", "players_penalty"]
-    avg = next((dff[c].mean() for c in cols if c in dff.columns and dff[c].notna().any()), None)
-    if avg is None:
-        in_box = dd[(dd["x2"] >= BOX_X0) & (dd["y2"] >= BOX_Y0) & (dd["y2"] <= BOX_Y1)]
+    player_cols = [
+        c for c in [
+            "players_near_post",
+            "players_far_post",
+            "players_6yard",
+            "players_penalty",
+            "players_small area",
+            "players_penalty area",
+        ]
+        if c in dff.columns
+    ]
+
+    if player_cols:
+        avg = round(
+            dff[player_cols]
+            .apply(pd.to_numeric, errors="coerce")
+            .fillna(0)
+            .sum(axis=1)
+            .mean(),
+            1
+        )
+    else:
+        in_box = dd[
+            (dd["x2"] >= BOX_X0) &
+            (dd["y2"] >= BOX_Y0) &
+            (dd["y2"] <= BOX_Y1)
+        ]
         avg = round(len(in_box) / total * 5, 1)
 
-# Move the badge slightly forward/up and keep it above all pitch lines/arcs
-    bx_, by_ = (32, 97.4) if vert else (84.0, 60.2)
+    bx_, by_ = (32, 97.2) if vert else (84.0, 58.8)
+
     ax.add_patch(
         plt.Circle(
-            (bx_, by_), 2.5,
+            (bx_, by_),
+            2.45,
             facecolor="#ff4d4d",
-            edgecolor=s["pitch_lines"],
-            linewidth=1.2,
-            zorder=12
+            edgecolor="white",
+            linewidth=1.3,
+            zorder=20,
+            clip_on=False,
         )
     )
     ax.text(
-        bx_, by_, f"{avg:.1f}",
-        ha="center", va="center",
+        bx_,
+        by_,
+        f"{avg:.1f}",
+        ha="center",
+        va="center",
         fontsize=max(s["tick_size"], 9),
-        fontweight="bold", color="white", zorder=13
+        fontweight="bold",
+        color="white",
+        zorder=21,
+        clip_on=False,
     )
-
-    lby = 95.0 if vert else 58.0
     ax.text(
-        bx_, lby, "Avg. players\nin box",
-        ha="center", va="top",
+        bx_,
+        by_ - 2.0,
+        "Avg. players\nin box",
+        ha="center",
+        va="top",
         fontsize=max(s["tick_size"] - 2, 6),
-        color=s["muted"], zorder=13
+        color=s["muted"],
+        zorder=21,
+        clip_on=False,
     )
-
-    
-    lby = 96 if vert else 60.5
-    ax.text(bx_, lby, "Avg. players\nin box", ha="center", va="top",
-            fontsize=max(s["tick_size"]-2, 6), color=s["muted"], zorder=6)
 
     lbl = "Right Side Corners" if corner_side == "right" else "Left Side Corners"
     chart_title(ax, lbl, s)
-    if s["tight_layout"]: fig.tight_layout()
+    if s["tight_layout"]:
+        fig.tight_layout()
     return fig
 
-def chart_zone_count_left(df, tn, flip_y=False, ov=None):  return _zone_count_map(df, tn, flip_y, ov, "left")
-def chart_zone_count_right(df, tn, flip_y=False, ov=None): return _zone_count_map(df, tn, flip_y, ov, "right")
+
+def chart_zone_count_left(df, tn, flip_y=False, ov=None):
+    return _zone_count_map(df, tn, flip_y, ov, "left")
+
+
+def chart_zone_count_right(df, tn, flip_y=False, ov=None):
+    return _zone_count_map(df, tn, flip_y, ov, "right")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ALL OTHER PITCH CHARTS  — use show_labels=False
