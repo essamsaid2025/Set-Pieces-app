@@ -579,42 +579,94 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
     for label, zx, zy, zw, zh in zones:
         mask = (dd["x2"] >= zx) & (dd["x2"] < zx+zw) & (dd["y2"] >= zy) & (dd["y2"] < zy+zh)
         counts[(label, zx, zy, zw, zh)] = int(mask.sum())
-
     max_cnt = max(counts.values()) if counts else 1
+    heat_cmap = plt.cm.Reds
 
     for (label, zx, zy, zw, zh), ck in zip(zones, ZONE_CKEYS):
-        cnt  = counts[(label, zx, zy, zw, zh)]
+        cnt = counts[(label, zx, zy, zw, zh)]
         inten = cnt / max(max_cnt, 1)
-        color = s.get(ck, s["accent"])
 
-        if vert: rx, ry, rw, rh = zy, zx, zh, zw
-        else:    rx, ry, rw, rh = zx, zy, zw, zh
+        if vert:
+            rx, ry, rw, rh = zy, zx, zh, zw
+        else:
+            rx, ry, rw, rh = zx, zy, zw, zh
 
-        ax.add_patch(Rectangle((rx, ry), rw, rh, facecolor=color,
-                                edgecolor=s["pitch_lines"], linewidth=0.8,
-                                alpha=0.10 + inten * 0.70, zorder=1))
-        cx_ = rx + rw/2; cy_ = ry + rh/2
+    # Stronger heat-map look: low counts are dark, high counts are bright red
+        heat_color = heat_cmap(0.18 + 0.78 * inten)
+
+        ax.add_patch(
+            Rectangle(
+                (rx, ry), rw, rh,
+                facecolor=heat_color,
+                edgecolor=s["pitch_lines"],
+                linewidth=0.8,
+                alpha=0.18 + inten * 0.62,
+                zorder=1,
+             )
+        )
+
+        cx_ = rx + rw / 2
+        cy_ = ry + rh / 2
         pct = cnt / total * 100
-        fs  = max(s["tick_size"] - 1, 7)
-        ax.text(cx_, cy_ + rh*0.20, label.replace("\n"," "), ha="center", va="center",
-                fontsize=max(fs-1, 5), color=s["muted"], alpha=0.85, zorder=3)
-        ax.text(cx_, cy_ - rh*0.05, str(cnt), ha="center", va="center",
-                fontsize=max(fs+3, 10), fontweight="bold", color=s["text"], zorder=4)
-        ax.text(cx_, cy_ - rh*0.28, f"{pct:.0f}%", ha="center", va="center",
-                fontsize=max(fs-1, 6), color=s["muted"], zorder=4)
+        fs = max(s["tick_size"] - 1, 7)
+        is_box_front = label.replace("\n", " ") == "Box Front"
 
-    # avg-players badge (red circle, bottom)
-    cols = ["players_near_post","players_far_post","players_6yard","players_penalty"]
-    avg  = next((dff[c].mean() for c in cols if c in dff.columns and dff[c].notna().any()), None)
+        ax.text(
+            cx_, cy_ + rh * 0.20,
+            label.replace("\n", " "),
+            ha="center", va="center",
+            fontsize=max(fs - 1, 5),
+            color=s["muted"], alpha=0.9, zorder=3
+        )
+
+        if not is_box_front:
+            ax.text(
+                cx_, cy_ - rh * 0.05, str(cnt),
+                ha="center", va="center",
+                fontsize=max(fs + 3, 10),
+                fontweight="bold", color=s["text"], zorder=4
+            )
+            ax.text(
+                cx_, cy_ - rh * 0.28, f"{pct:.0f}%",
+                ha="center", va="center",
+                fontsize=max(fs - 1, 6),
+                color=s["muted"], zorder=4
+            )
+
+# avg-players badge
+    cols = ["players_near_post", "players_far_post", "players_6yard", "players_penalty"]
+    avg = next((dff[c].mean() for c in cols if c in dff.columns and dff[c].notna().any()), None)
     if avg is None:
         in_box = dd[(dd["x2"] >= BOX_X0) & (dd["y2"] >= BOX_Y0) & (dd["y2"] <= BOX_Y1)]
         avg = round(len(in_box) / total * 5, 1)
 
-    bx_, by_ = (32, 97) if vert else (84, 63.5)
-    ax.add_patch(plt.Circle((bx_, by_), 2.5, facecolor=s["danger"],
-                             edgecolor=s["pitch_lines"], linewidth=1, zorder=5))
-    ax.text(bx_, by_, f"{avg:.1f}", ha="center", va="center",
-            fontsize=max(s["tick_size"], 9), fontweight="bold", color="white", zorder=6)
+# Move the badge slightly forward/up and keep it above all pitch lines/arcs
+    bx_, by_ = (32, 97.4) if vert else (84.0, 60.2)
+    ax.add_patch(
+        plt.Circle(
+            (bx_, by_), 2.5,
+            facecolor="#ff4d4d",
+            edgecolor=s["pitch_lines"],
+            linewidth=1.2,
+            zorder=12
+        )
+    )
+    ax.text(
+        bx_, by_, f"{avg:.1f}",
+        ha="center", va="center",
+        fontsize=max(s["tick_size"], 9),
+        fontweight="bold", color="white", zorder=13
+    )
+
+    lby = 95.0 if vert else 58.0
+    ax.text(
+        bx_, lby, "Avg. players\nin box",
+        ha="center", va="top",
+        fontsize=max(s["tick_size"] - 2, 6),
+        color=s["muted"], zorder=13
+    )
+
+    
     lby = 96 if vert else 60.5
     ax.text(bx_, lby, "Avg. players\nin box", ha="center", va="top",
             fontsize=max(s["tick_size"]-2, 6), color=s["muted"], zorder=6)
