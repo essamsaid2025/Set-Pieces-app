@@ -575,26 +575,56 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
         ax.set_xlim(-2, 66)
         ax.set_ylim(65, 103)
 
-    dd = dff.dropna(subset=["x2", "y2"]).copy()
-    total = max(len(dd), 1)
+    dd = dff.copy()
     zones = _barca_zones(corner_side)
+    zone_labels = [z[0] for z in zones]
 
-    counts = {}
-    for label, zx, zy, zw, zh in zones:
-        mask = (
-            (dd["x2"] >= zx) & (dd["x2"] < zx + zw) &
-            (dd["y2"] >= zy) & (dd["y2"] < zy + zh)
-        )
-        counts[(label, zx, zy, zw, zh)] = int(mask.sum())
+    def _normalize_zone_label(value):
+        txt = str(value).strip().lower()
+        txt = txt.replace("_", " ").replace("-", " ")
+        txt = " ".join(txt.split())
 
+        mapping = {
+            "near post short": "Near Post\nShort",
+            "short": "Near Post\nShort",
+            "near post": "Near\nPost",
+            "far post": "Far\nPost",
+            "far post long": "Far Post\nLong",
+            "long": "Far Post\nLong",
+            "small area": "Small\nArea",
+            "6 yard": "Small\nArea",
+            "six yard": "Small\nArea",
+            "penalty spot": "Penalty\nSpot",
+            "penalty area": "Penalty\nSpot",
+            "box front": "Box\nFront",
+        }
+        return mapping.get(txt)
+
+    counts = {label: 0 for label in zone_labels}
+
+    if "target_zone" in dd.columns and dd["target_zone"].notna().any():
+        for val in dd["target_zone"].dropna():
+            zone_label = _normalize_zone_label(val)
+            if zone_label in counts:
+                counts[zone_label] += 1
+    else:
+        dd_xy = dd.dropna(subset=["x2", "y2"]).copy()
+        for label, zx, zy, zw, zh in zones:
+            mask = (
+                (dd_xy["x2"] >= zx) & (dd_xy["x2"] < zx + zw) &
+                (dd_xy["y2"] >= zy) & (dd_xy["y2"] < zy + zh)
+            )
+            counts[label] = int(mask.sum())
+
+    total = max(sum(counts.values()), 1)
     max_cnt = max(counts.values()) if counts else 1
 
     low_red = np.array(mpl.colors.to_rgb("#2b0a0a"))
     high_red = np.array(mpl.colors.to_rgb("#ff3b30"))
 
     for label, zx, zy, zw, zh in zones:
-        cnt = counts[(label, zx, zy, zw, zh)]
-        inten = cnt / max(max_cnt, 1)
+        cnt = counts[label]
+        inten = cnt / max(max_cnt, 1) if max_cnt > 0 else 0
 
         if vert:
             rx, ry, rw, rh = zy, zx, zh, zw
@@ -660,32 +690,24 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
         c for c in [
             "players_near_post",
             "players_far_post",
-            "players_6yard",
-            "players_penalty",
             "players_small area",
             "players_penalty area",
         ]
         if c in dff.columns
     ]
 
+    avg = None
     if player_cols:
-        avg = round(
-            dff[player_cols]
-            .apply(pd.to_numeric, errors="coerce")
-            .fillna(0)
-            .sum(axis=1)
-            .mean(),
-            1
-        )
-    else:
-        in_box = dd[
-            (dd["x2"] >= BOX_X0) &
-            (dd["y2"] >= BOX_Y0) &
-            (dd["y2"] <= BOX_Y1)
-        ]
-        avg = round(len(in_box) / total * 5, 1)
+        player_frame = dff[player_cols].apply(pd.to_numeric, errors="coerce")
+        valid_rows = player_frame.notna().any(axis=1)
+        if valid_rows.any():
+            avg = round(player_frame.loc[valid_rows].fillna(0).sum(axis=1).mean(), 1)
 
-    bx_, by_ = (32, 97.2) if vert else (84.0, 58.8)
+    if avg is None:
+        avg = 0.0
+
+    # Adjusted position: outside the box and centered over the arc
+    bx_, by_ = (32.0, 78.5) if vert else (91.5, 57.8)
 
     ax.add_patch(
         plt.Circle(
@@ -712,7 +734,7 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
     )
     ax.text(
         bx_,
-        by_ - 2.0,
+        by_ - 2.1,
         "Avg. players\nin box",
         ha="center",
         va="top",
@@ -735,6 +757,7 @@ def chart_zone_count_left(df, tn, flip_y=False, ov=None):
 
 def chart_zone_count_right(df, tn, flip_y=False, ov=None):
     return _zone_count_map(df, tn, flip_y, ov, "right")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ALL OTHER PITCH CHARTS  — use show_labels=False
