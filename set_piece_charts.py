@@ -1210,11 +1210,10 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
         # ── "Avg players in box" badge ────────────────────────────────────────────
     # Center it directly under "Box Front" and remove the diagonal guide lines
     if not vert:
-        box_front_x = 72.0 + (BOX_X0 - 72.0) / 2.0
-        bx_, by_ = box_front_x, 7.5
+        bx_, by_ = (BOX_X0 + BOX_X1) / 2.0, 7.5
     else:
-        box_front_y = 72.0 + (BOX_X0 - 72.0) / 2.0
-        bx_, by_ = 7.5, box_front_y
+        bx_, by_ = 7.5, (BOX_X0 + BOX_X1) / 2.0
+
 
     ax.add_patch(plt.Circle(
         (bx_, by_), 2.5,
