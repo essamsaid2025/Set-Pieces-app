@@ -145,8 +145,22 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("## 📊 Charts")
     all_charts = list(CHART_BUILDERS.keys())
-    default_charts = list(CHART_BUILDERS.keys())
-    selected_charts = st.multiselect("Choose charts", all_charts, default=default_charts)
+    default_charts = [
+        "Delivery Trajectories - Left Corners",
+        "Delivery Trajectories - Right Corners",
+        "Delivery End Scatter - Left Corner",
+        "Delivery End Scatter - Right Corner",
+        "Zone Delivery Count Map - Left Corner",
+        "Zone Delivery Count Map - Right Corner",
+        "Avg Players Per Zone - Left Corner",
+        "Avg Players Per Zone - Right Corner",
+        "First Contact Location Map",
+        "Set Piece Landing Heatmap",
+        "Taker Stats Table",
+    ]
+    # Guard: remove any default that isn't in all_charts (handles stale deployments)
+    safe_defaults = [c for c in default_charts if c in all_charts]
+    selected_charts = st.multiselect("Choose charts", all_charts, default=safe_defaults)
 
     with st.expander("Chart requirements", expanded=False):
         for ch in selected_charts:
