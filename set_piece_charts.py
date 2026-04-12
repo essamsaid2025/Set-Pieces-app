@@ -1273,36 +1273,6 @@ def chart_avg_players_right(df, theme_name, flip_y=False, style_overrides=None):
 # ─────────────────────────────────────────────────────────────────────────────
 # REGISTRY
 # ─────────────────────────────────────────────────────────────────────────────
-CHART_BUILDERS = {
-    "Delivery Start Map":                      chart_delivery_start_map,
-    "Delivery Heatmap":                        chart_delivery_heatmap,
-    "Delivery End Scatter - Left Corner":      chart_delivery_end_scatter_left,
-    "Delivery End Scatter - Right Corner":     chart_delivery_end_scatter_right,
-    "Delivery Trajectories - Left Corners":    chart_delivery_trajectories_left,
-    "Delivery Trajectories - Right Corners":   chart_delivery_trajectories_right,
-    "Average Delivery Path":                   chart_average_delivery_path,
-    "Heat + Trajectories":                     chart_heat_plus_trajectories,
-    "Trajectory Clusters":                     chart_trajectory_clusters,
-    "Delivery Length Distribution":            chart_delivery_length_distribution,
-    "Delivery Direction Map":                  chart_delivery_direction_map,
-    "Outcome Distribution":                    chart_outcome_distribution,
-    "Target Zone Breakdown":                   chart_target_zone_breakdown,
-    "Zone Delivery Count Map - Left Corner":   chart_zone_count_left,
-    "Zone Delivery Count Map - Right Corner":  chart_zone_count_right,
-    "Avg Players Per Zone - Left Corner":      chart_avg_players_left,
-    "Avg Players Per Zone - Right Corner":     chart_avg_players_right,
-    "First Contact Win By Zone":               chart_first_contact_win_by_zone,
-    "Routine Breakdown":                       chart_routine_breakdown,
-    "Shot Map":                                chart_shot_map,
-    "Second Ball Map":                         chart_second_ball_map,
-    "Defensive Vulnerability Map":             chart_defensive_vulnerability_map,
-    "Taker Profile":                           chart_taker_profile,
-    "Structure Zone Averages":                 chart_structure_zone_averages,
-    "Set Piece Landing Heatmap":               chart_set_piece_landing_heatmap,
-    "Taker Stats Table":                       chart_taker_stats_table,
-    "First Contact Location Map":             chart_first_contact_map,
-}
-
 # ─────────────────────────────────────────────────────────────────────────────
 # FIRST CONTACT LOCATION MAP
 # Shows x2/y2 delivery end positions, coloured & shaped by action type
@@ -1428,3 +1398,33 @@ def chart_first_contact_map(df, theme_name, flip_y=False, style_overrides=None):
     chart_title(ax, "First Contact Location Map", s)
     if s["tight_layout"]: fig.tight_layout()
     return fig
+
+CHART_BUILDERS = {
+    "Delivery Start Map":                      chart_delivery_start_map,
+    "Delivery Heatmap":                        chart_delivery_heatmap,
+    "Delivery End Scatter - Left Corner":      chart_delivery_end_scatter_left,
+    "Delivery End Scatter - Right Corner":     chart_delivery_end_scatter_right,
+    "Delivery Trajectories - Left Corners":    chart_delivery_trajectories_left,
+    "Delivery Trajectories - Right Corners":   chart_delivery_trajectories_right,
+    "Average Delivery Path":                   chart_average_delivery_path,
+    "Heat + Trajectories":                     chart_heat_plus_trajectories,
+    "Trajectory Clusters":                     chart_trajectory_clusters,
+    "Delivery Length Distribution":            chart_delivery_length_distribution,
+    "Delivery Direction Map":                  chart_delivery_direction_map,
+    "Outcome Distribution":                    chart_outcome_distribution,
+    "Target Zone Breakdown":                   chart_target_zone_breakdown,
+    "Zone Delivery Count Map - Left Corner":   chart_zone_count_left,
+    "Zone Delivery Count Map - Right Corner":  chart_zone_count_right,
+    "Avg Players Per Zone - Left Corner":      chart_avg_players_left,
+    "Avg Players Per Zone - Right Corner":     chart_avg_players_right,
+    "First Contact Win By Zone":               chart_first_contact_win_by_zone,
+    "Routine Breakdown":                       chart_routine_breakdown,
+    "Shot Map":                                chart_shot_map,
+    "Second Ball Map":                         chart_second_ball_map,
+    "Defensive Vulnerability Map":             chart_defensive_vulnerability_map,
+    "Taker Profile":                           chart_taker_profile,
+    "Structure Zone Averages":                 chart_structure_zone_averages,
+    "Set Piece Landing Heatmap":               chart_set_piece_landing_heatmap,
+    "Taker Stats Table":                       chart_taker_stats_table,
+    "First Contact Location Map":             chart_first_contact_map,
+}
