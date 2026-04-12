@@ -552,214 +552,162 @@ def chart_delivery_end_scatter_right(df, tn, flip_y=False, ov=None):
 # ─────────────────────────────────────────────────────────────────────────────
 # ZONE DELIVERY COUNT MAP  (like pic 2 — heatmap intensity + counts)
 # ─────────────────────────────────────────────────────────────────────────────
-def _zone_count_map(df, tn, flip_y, ov, corner_side):
-    s     = resolve_style(tn, ov)
-    vert  = s.get("pitch_vertical", False)
-    pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+def plot_corner_heatmap(df, side, theme):
+    s = theme if isinstance(theme, dict) else resolve_style(theme, None)
+    dff = df.copy()
 
     if "side" in dff.columns:
-        mask = dff["side"].astype(str).str.lower() == corner_side
-        if mask.any():
-            dff = dff[mask].copy()
+        side_mask = dff["side"].astype(str).str.lower() == str(side).lower()
+        if side_mask.any():
+            dff = dff[side_mask].copy()
 
-    figsize = (6, 7) if vert else (9, 6)
-    fig, ax = _base_fig(s, figsize)
-    pitch.draw(ax=ax)
-    _setup_pitch_axes(ax, s, vert)
+    zone_aliases = {
+        "near_post": ["near_post", "players_near_post", "avg_near_post"],
+        "far_post": ["far_post", "players_far_post", "avg_far_post"],
+        "small_area": ["small_area", "players_small_area", "players_small area", "avg_small_area"],
+        "penalty": ["penalty", "penalty_area", "players_penalty_area", "players_penalty area", "avg_penalty"],
+    }
 
-    if not vert:
-        ax.set_xlim(65, 103)
-        ax.set_ylim(-2, 66)
-    else:
-        ax.set_xlim(-2, 66)
-        ax.set_ylim(65, 103)
+    def _pick_col(candidates):
+        return next((col for col in candidates if col in dff.columns), None)
 
-    zones = _barca_zones(corner_side)
-    zone_labels = [z[0] for z in zones]
+    zone_cols = {key: _pick_col(candidates) for key, candidates in zone_aliases.items()}
+    selected_cols = [col for col in zone_cols.values() if col]
 
-    def _normalize_zone_label(value):
-        txt = str(value).strip().lower()
-        txt = txt.replace("_", " ").replace("-", " ")
-        txt = " ".join(txt.split())
+    zone_avgs = {key: 0.0 for key in zone_aliases}
+    avg_players_in_box = 0.0
 
-        mapping = {
-            "near post short": "Near Post\nShort",
-            "short": "Near Post\nShort",
-            "near post": "Near\nPost",
-            "far post": "Far\nPost",
-            "far post long": "Far Post\nLong",
-            "long": "Far Post\nLong",
-            "small area": "Small\nArea",
-            "smallarea": "Small\nArea",
-            "6 yard": "Small\nArea",
-            "six yard": "Small\nArea",
-            "penalty spot": "Penalty\nSpot",
-            "penalty area": "Penalty\nSpot",
-            "box front": "Box\nFront",
-        }
-        return mapping.get(txt)
-
-    counts = {label: 0 for label in zone_labels}
-
-    if "target_zone" in dff.columns and dff["target_zone"].notna().any():
-        for val in dff["target_zone"].dropna():
-            zone_label = _normalize_zone_label(val)
-            if zone_label in counts:
-                counts[zone_label] += 1
-    else:
-        dd_xy = dff.dropna(subset=["x2", "y2"]).copy()
-        for label, zx, zy, zw, zh in zones:
-            mask = (
-                (dd_xy["x2"] >= zx) & (dd_xy["x2"] < zx + zw) &
-                (dd_xy["y2"] >= zy) & (dd_xy["y2"] < zy + zh)
-            )
-            counts[label] = int(mask.sum())
-
-    total = max(sum(counts.values()), 1)
-    max_cnt = max(counts.values()) if counts else 1
-
-    low_red = np.array(mpl.colors.to_rgb("#2b0a0a"))
-    high_red = np.array(mpl.colors.to_rgb("#ff3b30"))
-
-    for label, zx, zy, zw, zh in zones:
-        cnt = counts[label]
-        inten = cnt / max(max_cnt, 1) if max_cnt > 0 else 0
-
-        if vert:
-            rx, ry, rw, rh = zy, zx, zh, zw
-        else:
-            rx, ry, rw, rh = zx, zy, zw, zh
-
-        rgb = low_red * (1.0 - inten) + high_red * inten
-
-        ax.add_patch(
-            Rectangle(
-                (rx, ry), rw, rh,
-                facecolor=rgb,
-                edgecolor=s["pitch_lines"],
-                linewidth=0.8,
-                alpha=0.78,
-                zorder=3,
-            )
-        )
-
-        cx_ = rx + rw / 2
-        cy_ = ry + rh / 2
-        pct = cnt / total * 100
-        fs = max(s["tick_size"] - 1, 7)
-        label_text = label.replace("\n", " ")
-        is_box_front = label_text == "Box Front"
-
-        ax.text(
-            cx_,
-            cy_ + rh * (0.18 if not is_box_front else 0.08),
-            label_text,
-            ha="center",
-            va="center",
-            fontsize=max(fs - 1, 5),
-            color=s["muted"],
-            alpha=0.92,
-            zorder=6,
-        )
-
-        if not is_box_front:
-            ax.text(
-                cx_,
-                cy_ - rh * 0.03,
-                str(cnt),
-                ha="center",
-                va="center",
-                fontsize=max(fs + 3, 10),
-                fontweight="bold",
-                color=s["text"],
-                zorder=7,
-            )
-            ax.text(
-                cx_,
-                cy_ - rh * 0.26,
-                f"{pct:.0f}%",
-                ha="center",
-                va="center",
-                fontsize=max(fs - 1, 6),
-                color=s["muted"],
-                zorder=7,
-            )
-
-    # Average players in box:
-    # near post + far post + small area + penalty area, then average across rows
-    player_col_options = [
-        ("players_near_post",),
-        ("players_far_post",),
-        ("players_small_area", "players_small area"),
-        ("players_penalty_area", "players_penalty area"),
-    ]
-
-    selected_cols = []
-    for options in player_col_options:
-        found = next((col for col in options if col in dff.columns), None)
-        if found:
-            selected_cols.append(found)
-
-    avg = 0.0
     if len(selected_cols) == 4:
-        player_frame = dff[selected_cols].apply(pd.to_numeric, errors="coerce")
-        valid_rows = player_frame.notna().any(axis=1)
+        zone_frame = dff[selected_cols].apply(pd.to_numeric, errors="coerce")
+        zone_frame.columns = list(zone_cols.keys())
+        valid_rows = zone_frame.notna().any(axis=1)
         if valid_rows.any():
-            row_totals = player_frame.loc[valid_rows].fillna(0).sum(axis=1)
-            avg = round(row_totals.mean(), 1)
+            zone_frame = zone_frame.loc[valid_rows].fillna(0)
+            zone_avgs = {col: round(float(zone_frame[col].mean()), 1) for col in zone_frame.columns}
+            avg_players_in_box = round(float(zone_frame.sum(axis=1).mean()), 1)
 
-    bx_, by_ = (32.0, 76.5) if vert else (91.5, 54.8)
+    title = "Left Side Corners" if str(side).lower() == "left" else "Right Side Corners"
+    bg = s["panel"] if np.mean(mpl.colors.to_rgb(s["panel"])) > 0.35 else s["bg"]
+    fg = s["text"]
+    muted = s["muted"]
+    border = s["lines"]
+    title_color = s["accent"]
+    pitch_line = s["lines"] if np.mean(mpl.colors.to_rgb(s["lines"])) > 0.25 else s["pitch_lines"]
+    heat_alpha = 0.90 if np.mean(mpl.colors.to_rgb(bg)) > 0.6 else 0.76
 
-    ax.add_patch(
-        plt.Circle(
-            (bx_, by_),
-            2.45,
-            facecolor="#ff4d4d",
-            edgecolor="white",
-            linewidth=1.3,
-            zorder=20,
-            clip_on=False,
+    apply_rcparams(s)
+    fig, ax = plt.subplots(figsize=(5.2, 5.4))
+    fig.patch.set_facecolor(s["bg"])
+    ax.set_facecolor(bg)
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    ax.axis("off")
+
+    ax.add_patch(Rectangle((1.5, 1.5), 97, 97, fill=False, edgecolor=border, linewidth=1.0, zorder=1))
+    ax.add_patch(Rectangle((1.5, 88.5), 97, 10, facecolor=s["panel_2"], edgecolor=border, linewidth=1.0, zorder=2))
+    ax.text(50, 93.5, title, ha="center", va="center",
+            fontsize=s["title_size"], fontweight="bold", color=title_color, zorder=3)
+
+    goal_y = 78
+    six_y = 64
+    box_y = 42
+    goal_left, goal_right = 42, 58
+    six_left, six_right = 32, 68
+    box_left, box_right = 14, 86
+
+    ax.plot([10, 90], [goal_y, goal_y], color=pitch_line, lw=1.1, zorder=4)
+    ax.plot([goal_left, goal_right], [goal_y + 1.5, goal_y + 1.5], color=pitch_line, lw=3.0, zorder=5)
+    ax.add_patch(Rectangle((six_left, six_y), six_right - six_left, goal_y - six_y,
+                           fill=False, edgecolor=pitch_line, linewidth=1.1, zorder=4))
+    ax.add_patch(Rectangle((box_left, box_y), box_right - box_left, goal_y - box_y,
+                           fill=False, edgecolor=pitch_line, linewidth=1.1, zorder=4))
+    for x in (42, 58):
+        ax.plot([x, x], [box_y, goal_y], color=pitch_line, lw=1.0, ls="--", alpha=0.85, zorder=4)
+    ax.add_patch(Arc((50, box_y), 18, 12, angle=0, theta1=200, theta2=340, color=pitch_line, lw=1.1, zorder=4))
+    ax.scatter([50], [58], s=10, color=pitch_line, zorder=5)
+
+    xx, yy = np.meshgrid(np.linspace(10, 90, 260), np.linspace(30, 82, 220))
+    heat = np.zeros_like(xx, dtype=float)
+    zone_points = {
+        "near_post": (31, 57),
+        "far_post": (69, 57),
+        "small_area": (50, 69),
+        "penalty": (50, 47),
+    }
+    zone_sigmas = {
+        "near_post": (8.0, 7.0),
+        "far_post": (8.0, 7.0),
+        "small_area": (10.0, 5.8),
+        "penalty": (7.5, 7.5),
+    }
+
+    for zone_name, weight in zone_avgs.items():
+        if weight <= 0:
+            continue
+        cx, cy = zone_points[zone_name]
+        sx, sy = zone_sigmas[zone_name]
+        heat += weight * np.exp(-(((xx - cx) ** 2) / (2 * sx ** 2) + ((yy - cy) ** 2) / (2 * sy ** 2)))
+
+    if np.nanmax(heat) > 0:
+        heat = heat / np.nanmax(heat)
+        reds = mpl.colors.LinearSegmentedColormap.from_list(
+            "corner_reds",
+            ["#ffffff", "#ffb3b3", "#ff3b30", "#7f0000"],
         )
-    )
-    ax.text(
-        bx_,
-        by_,
-        f"{avg:.1f}",
+        ax.imshow(
+            heat,
+            extent=(10, 90, 30, 82),
+            origin="lower",
+            cmap=reds,
+            alpha=heat_alpha,
+            interpolation="bilinear",
+            zorder=3.5,
+        )
+
+    num_style = dict(
         ha="center",
         va="center",
-        fontsize=max(s["tick_size"], 9),
+        fontsize=max(s["tick_size"] + 5, 16),
         fontweight="bold",
-        color="white",
-        zorder=21,
-        clip_on=False,
+        color=fg,
+        zorder=7,
     )
-    ax.text(
-        bx_,
-        by_ - 2.1,
-        "Avg. players\nin box",
-        ha="center",
-        va="top",
-        fontsize=max(s["tick_size"] - 2, 6),
-        color=s["muted"],
-        zorder=21,
-        clip_on=False,
-    )
+    stroke = [mpl.patheffects.withStroke(linewidth=2.2, foreground=s["bg"], alpha=0.75)]
 
-    lbl = "Right Side Corners" if corner_side == "right" else "Left Side Corners"
-    chart_title(ax, lbl, s)
-    if s["tight_layout"]:
-        fig.tight_layout()
+    near_txt = ax.text(28, 56, f"{zone_avgs['near_post']:.1f}", **num_style)
+    far_txt = ax.text(72, 56, f"{zone_avgs['far_post']:.1f}", **num_style)
+    small_txt = ax.text(50, 73, f"{zone_avgs['small_area']:.1f}", **num_style)
+    pen_txt = ax.text(50, 46.5, f"{zone_avgs['penalty']:.1f}", **num_style)
+    for txt in (near_txt, far_txt, small_txt, pen_txt):
+        txt.set_path_effects(stroke)
+
+    ax.text(50, 60, "Small Area", ha="center", va="center",
+            fontsize=max(s["tick_size"], 10), color=muted, zorder=7)
+    ax.text(26, 35.5, "Box Front", ha="center", va="center",
+            fontsize=max(s["tick_size"], 10), color=muted, zorder=7)
+    ax.text(74, 35.5, "Box Front", ha="center", va="center",
+            fontsize=max(s["tick_size"], 10), color=muted, zorder=7)
+
+    badge = plt.Circle((50, 19), 8.0, facecolor=s["danger"], edgecolor=pitch_line,
+                       linewidth=1.3, zorder=8, clip_on=False)
+    ax.add_patch(badge)
+    avg_txt = ax.text(50, 19, f"{avg_players_in_box:.1f}", ha="center", va="center",
+                      fontsize=max(s["tick_size"] + 6, 16), fontweight="bold", color="white", zorder=9)
+    avg_txt.set_path_effects(stroke)
+    ax.text(50, 7.5, "Avg. players in box", ha="center", va="center",
+            fontsize=max(s["tick_size"] + 1, 10), color=fg, zorder=9)
+
+    fig.tight_layout(pad=0.6)
     return fig
 
 
-def chart_zone_count_left(df, tn, flip_y=False, ov=None):
-    return _zone_count_map(df, tn, flip_y, ov, "left")
+def _zone_count_map(df, tn, flip_y, ov, corner_side):
+    theme = resolve_style(tn, ov)
+    return plot_corner_heatmap(df, corner_side, theme)
 
 
-def chart_zone_count_right(df, tn, flip_y=False, ov=None):
-    return _zone_count_map(df, tn, flip_y, ov, "right")
-
+def chart_zone_count_left(df, tn, flip_y=False, ov=None):  return _zone_count_map(df, tn, flip_y, ov, "left")
+def chart_zone_count_right(df, tn, flip_y=False, ov=None): return _zone_count_map(df, tn, flip_y, ov, "right")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ALL OTHER PITCH CHARTS  — use show_labels=False
@@ -1113,15 +1061,7 @@ def chart_structure_zone_averages(df, tn, flip_y=False, ov=None):
 def chart_taker_stats_table(df, tn, flip_y=False, ov=None):
     s = resolve_style(tn, ov)
     if "taker" not in df.columns:
-        fig, ax = _base_fig(s, (9, 4))
-        ax.text(
-            0.5, 0.5, "No 'taker' column",
-            ha="center", va="center",
-            color=s["text"], fontsize=12,
-            transform=ax.transAxes
-        )
-        return fig
-
+        fig,ax=_base_fig(s,(9,4)); ax.text(0.5,0.5,"No 'taker' column",ha="center",va="center",color=s["text"],fontsize=12,transform=ax.transAxes); return fig
     def _shirt_number_label(value):
         text = str(value).strip()
         try:
@@ -1129,207 +1069,54 @@ def chart_taker_stats_table(df, tn, flip_y=False, ov=None):
             return str(int(num)) if num.is_integer() else text
         except Exception:
             return text
-
-    rows = []
-    for taker, grp in df.groupby("taker"):
-        if str(taker).lower() in ("nan", "none", ""):
-            continue
-
-        ns = int(grp["sequence_id"].nunique()) if "sequence_id" in grp.columns else len(grp)
-        ni = int((grp["delivery_type"].astype(str).str.lower() == "inswing").sum()) if "delivery_type" in grp.columns else 0
-        no = int((grp["delivery_type"].astype(str).str.lower() == "outswing").sum()) if "delivery_type" in grp.columns else 0
-        nsu = int((grp["outcome"].astype(str).str.lower().isin(["successful", "success", "won"])).sum()) if "outcome" in grp.columns else 0
-        sr = round(nsu / max(len(grp), 1) * 100, 1)
-        nl = int((grp["side"].astype(str).str.lower() == "left").sum()) if "side" in grp.columns else 0
-        nr = int((grp["side"].astype(str).str.lower() == "right").sum()) if "side" in grp.columns else 0
-
-        rows.append({
-            "taker": str(taker).title(),
-            "shirt_number": _shirt_number_label(taker),
-            "sequences": ns,
-            "inswing": ni,
-            "outswing": no,
-            "left": nl,
-            "right": nr,
-            "success_rate": sr,
-        })
-
+    rows=[]
+    for taker,grp in df.groupby("taker"):
+        if str(taker).lower() in ("nan","none",""): continue
+        ns=int(grp["sequence_id"].nunique()) if "sequence_id" in grp.columns else len(grp)
+        ni=int((grp["delivery_type"].astype(str).str.lower()=="inswing").sum()) if "delivery_type" in grp.columns else 0
+        no=int((grp["delivery_type"].astype(str).str.lower()=="outswing").sum()) if "delivery_type" in grp.columns else 0
+        nsu=int((grp["outcome"].astype(str).str.lower().isin(["successful","success","won"])).sum()) if "outcome" in grp.columns else 0
+        sr=round(nsu/max(len(grp),1)*100,1)
+        nl=int((grp["side"].astype(str).str.lower()=="left").sum()) if "side" in grp.columns else 0
+        nr=int((grp["side"].astype(str).str.lower()=="right").sum()) if "side" in grp.columns else 0
+        rows.append({"taker":str(taker).title(),"shirt_number":_shirt_number_label(taker),"sequences":ns,"inswing":ni,"outswing":no,"left":nl,"right":nr,"success_rate":sr})
     if not rows:
-        fig, ax = _base_fig(s, (9, 4))
-        ax.text(
-            0.5, 0.5, "No taker data",
-            ha="center", va="center",
-            color=s["text"], fontsize=12,
-            transform=ax.transAxes
-        )
-        return fig
-
-    sdf = pd.DataFrame(rows).sort_values("sequences", ascending=False).head(12).reset_index(drop=True)
-
-    n = len(sdf)
-    row_h = 0.72
-    hh = 1.0
-    fw = 9.5
-    fh = hh + n * row_h + 0.4
-
+        fig,ax=_base_fig(s,(9,4)); ax.text(0.5,0.5,"No taker data",ha="center",va="center",color=s["text"],fontsize=12,transform=ax.transAxes); return fig
+    sdf=pd.DataFrame(rows).sort_values("sequences",ascending=False).head(12).reset_index(drop=True)
+    n=len(sdf); row_h=0.72; hh=1.0; fw=9.5; fh=hh+n*row_h+0.4
     apply_rcparams(s)
-    fig = plt.figure(figsize=(fw, fh))
-    fig.patch.set_facecolor(s["bg"])
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, fw)
-    ax.set_ylim(0, fh)
-    ax.set_facecolor(s["bg"])
-    ax.axis("off")
-
-    bc_s = s.get("shirt_body_color", s["accent"])
-    sl_c = s.get("shirt_sleeve_color", s["panel"])
-    nm_c = s.get("shirt_number_color", s["bg"])
-
-    mw = 1.55
-
-    ax.text(
-        fw / 2, fh - 0.28, "Set Piece Taker Stats",
-        ha="center", va="top",
-        fontsize=s["title_size"] + 2,
-        fontweight="bold", color=s["text"]
-    )
-    ax.text(
-        fw / 2, fh - 0.62, "Sorted by number of set piece sequences taken",
-        ha="center", va="top",
-        fontsize=s["tick_size"], color=s["muted"]
-    )
-
-    cx = {
-        "shirt": 0.55,
-        "seq": 3.10,
-        "ins": 4.00,
-        "out": 4.95,
-        "left": 5.85,
-        "right": 6.55,
-        "rate": 7.95,
-    }
-
-    hy = fh - hh + 0.05
-    for k, lbl in {
-        "seq": "SEQ",
-        "ins": "INSWING",
-        "out": "OUTSWING",
-        "left": "LEFT",
-        "right": "RIGHT",
-        "rate": "SUCCESS %",
-    }.items():
-        ax.text(
-            cx[k], hy, lbl,
-            ha="center", va="bottom",
-            fontsize=s["tick_size"] - 1,
-            color=s["muted"], fontweight="bold"
-        )
-
-    ax.axhline(hy - 0.02, xmin=0.02, xmax=0.98, color=s["lines"], linewidth=0.8, alpha=0.6)
-
-    for i, row in sdf.iterrows():
-        yc = fh - hh - (i + 0.5) * row_h
-
-        if i % 2 == 0:
-            ax.add_patch(
-                Rectangle(
-                    (0.1, yc - row_h / 2 + 0.04),
-                    fw - 0.2,
-                    row_h - 0.08,
-                    facecolor=s["panel"],
-                    edgecolor="none",
-                    alpha=0.35,
-                    zorder=0,
-                )
-            )
-
-        sz = row_h * 0.78
-        bx = cx["shirt"] - sz * 0.55 / 2
-        by = yc - sz * 0.65 / 2 - sz * 0.04
-
-        ax.add_patch(FancyBboxPatch(
-            (bx, by), sz * 0.55, sz * 0.65,
-            boxstyle="round,pad=0.01",
-            facecolor=bc_s, edgecolor=s["lines"],
-            linewidth=0.6, zorder=4
-        ))
-        ax.add_patch(FancyBboxPatch(
-            (bx - sz * 0.22, by + sz * 0.65 * 0.62),
-            sz * 0.22, sz * 0.28 * 0.7,
-            boxstyle="round,pad=0.01",
-            facecolor=sl_c, edgecolor=s["lines"],
-            linewidth=0.5, zorder=4
-        ))
-        ax.add_patch(FancyBboxPatch(
-            (bx + sz * 0.55, by + sz * 0.65 * 0.62),
-            sz * 0.22, sz * 0.28 * 0.7,
-            boxstyle="round,pad=0.01",
-            facecolor=sl_c, edgecolor=s["lines"],
-            linewidth=0.5, zorder=4
-        ))
-        ax.add_patch(plt.Circle(
-            (cx["shirt"], by + sz * 0.65 - sz * 0.09 * 0.3),
-            sz * 0.09,
-            facecolor=sl_c, edgecolor=s["lines"],
-            linewidth=0.5, zorder=5
-        ))
-
-        ax.text(
-            cx["shirt"], by + sz * 0.65 * 0.38, str(row["shirt_number"]),
-            ha="center", va="center",
-            fontsize=max(s["tick_size"] - 1, 7),
-            fontweight="bold", color=nm_c, zorder=6
-        )
-
-        for k in ["seq", "ins", "out", "left", "right"]:
-            v = {
-                "seq": row["sequences"],
-                "ins": row["inswing"],
-                "out": row["outswing"],
-                "left": row["left"],
-                "right": row["right"],
-            }[k]
-            ax.text(
-                cx[k], yc, str(v),
-                ha="center", va="center",
-                fontsize=s["tick_size"], color=s["text"]
-            )
-
-        rate = row["success_rate"] / 100.0
-        bx_ = cx["rate"] - mw / 2
-        bh = row_h * 0.30
-
-        ax.add_patch(Rectangle(
-            (bx_, yc - bh / 2), mw, bh,
-            facecolor=s["lines"], edgecolor="none",
-            alpha=0.35, zorder=1
-        ))
-
-        bfc = s.get("bar_colors", {}).get("default", s["accent"])
-        ax.add_patch(Rectangle(
-            (bx_, yc - bh / 2), mw * rate, bh,
-            facecolor=bfc, edgecolor="none",
-            alpha=0.90, zorder=2
-        ))
-
-        ax.text(
-            bx_ + mw + 0.08, yc, f"{row['success_rate']:.1f}%",
-            ha="left", va="center",
-            fontsize=s["tick_size"] - 1,
-            color=s["text"]
-        )
-
-        ax.axhline(
-            yc - row_h / 2 + 0.04,
-            xmin=0.02, xmax=0.98,
-            color=s["lines"], linewidth=0.4, alpha=0.3
-        )
-
-    if s["tight_layout"]:
-        fig.tight_layout(pad=0.3)
-
+    fig=plt.figure(figsize=(fw,fh)); fig.patch.set_facecolor(s["bg"])
+    ax=fig.add_axes([0,0,1,1]); ax.set_xlim(0,fw); ax.set_ylim(0,fh)
+    ax.set_facecolor(s["bg"]); ax.axis("off")
+    bc_s=s.get("shirt_body_color",s["accent"]); sl_c=s.get("shirt_sleeve_color",s["panel"]); nm_c=s.get("shirt_number_color",s["bg"])
+    mw=1.55
+    ax.text(fw/2,fh-0.28,"Set Piece Taker Stats",ha="center",va="top",fontsize=s["title_size"]+2,fontweight="bold",color=s["text"])
+    ax.text(fw/2,fh-0.62,"Sorted by number of set piece sequences taken",ha="center",va="top",fontsize=s["tick_size"],color=s["muted"])
+    cx={"shirt":0.55,"seq":3.10,"ins":4.00,"out":4.95,"left":5.85,"right":6.55,"rate":7.95}
+    hy=fh-hh+0.05
+    for k,lbl in {"seq":"SEQ","ins":"INSWING","out":"OUTSWING","left":"LEFT","right":"RIGHT","rate":"SUCCESS %"}.items():
+        ax.text(cx[k],hy,lbl,ha="center",va="bottom",fontsize=s["tick_size"]-1,color=s["muted"],fontweight="bold")
+    ax.axhline(hy-0.02,xmin=0.02,xmax=0.98,color=s["lines"],linewidth=0.8,alpha=0.6)
+    for i,row in sdf.iterrows():
+        yc=fh-hh-(i+0.5)*row_h
+        if i%2==0: ax.add_patch(Rectangle((0.1,yc-row_h/2+0.04),fw-0.2,row_h-0.08,facecolor=s["panel"],edgecolor="none",alpha=0.35,zorder=0))
+        sz=row_h*0.78; bx=cx["shirt"]-sz*0.55/2; by=yc-sz*0.65/2-sz*0.04
+        ax.add_patch(FancyBboxPatch((bx,by),sz*0.55,sz*0.65,boxstyle="round,pad=0.01",facecolor=bc_s,edgecolor=s["lines"],linewidth=0.6,zorder=4))
+        ax.add_patch(FancyBboxPatch((bx-sz*0.22,by+sz*0.65*0.62),sz*0.22,sz*0.28*0.7,boxstyle="round,pad=0.01",facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=4))
+        ax.add_patch(FancyBboxPatch((bx+sz*0.55,by+sz*0.65*0.62),sz*0.22,sz*0.28*0.7,boxstyle="round,pad=0.01",facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=4))
+        ax.add_patch(plt.Circle((cx["shirt"],by+sz*0.65-sz*0.09*0.3),sz*0.09,facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=5))
+        ax.text(cx["shirt"],by+sz*0.65*0.38,str(row["shirt_number"]),ha="center",va="center",fontsize=max(s["tick_size"]-1,7),fontweight="bold",color=nm_c,zorder=6)
+        for k in ["seq","ins","out","left","right"]:
+            v={"seq":row["sequences"],"ins":row["inswing"],"out":row["outswing"],"left":row["left"],"right":row["right"]}[k]
+            ax.text(cx[k],yc,str(v),ha="center",va="center",fontsize=s["tick_size"],color=s["text"])
+        rate=row["success_rate"]/100.0; bx_=cx["rate"]-mw/2; bh=row_h*0.30
+        ax.add_patch(Rectangle((bx_,yc-bh/2),mw,bh,facecolor=s["lines"],edgecolor="none",alpha=0.35,zorder=1))
+        bfc=s.get("bar_colors",{}).get("default",s["accent"])
+        ax.add_patch(Rectangle((bx_,yc-bh/2),mw*rate,bh,facecolor=bfc,edgecolor="none",alpha=0.90,zorder=2))
+        ax.text(bx_+mw+0.08,yc,f"{row['success_rate']:.1f}%",ha="left",va="center",fontsize=s["tick_size"]-1,color=s["text"])
+        ax.axhline(yc-row_h/2+0.04,xmin=0.02,xmax=0.98,color=s["lines"],linewidth=0.4,alpha=0.3)
+    if s["tight_layout"]: fig.tight_layout(pad=0.3)
     return fig
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REGISTRY
