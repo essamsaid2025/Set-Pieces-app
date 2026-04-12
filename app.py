@@ -134,6 +134,8 @@ with st.sidebar:
         "Delivery End Scatter - Right Corner",
         "Zone Delivery Count Map - Left Corner",
         "Zone Delivery Count Map - Right Corner",
+        "Avg Players Per Zone - Left Corner",
+        "Avg Players Per Zone - Right Corner",
         "Set Piece Landing Heatmap",
         "Taker Stats Table",
     ]
@@ -316,16 +318,16 @@ with right_col:
         try:
             fig = CHART_BUILDERS[chart_name](
                 df.copy(),
-                tn=theme_name,
+                theme_name=theme_name,
                 flip_y=False,
-                ov=chart_style,
+                style_overrides=chart_style,
             )
             figures.append(fig)
             st.pyplot(fig, use_container_width=True)
 
             png_bytes = fig_to_png_bytes(fig, dpi=chart_style["export_dpi"])
             png_name = chart_name.lower().replace(" ", "_").replace("%", "pct") + ".png"
-    
+
             st.download_button(
                 f"⬇️ Download {chart_name} PNG",
                 data=png_bytes,
@@ -335,7 +337,6 @@ with right_col:
             )
         except Exception as e:
             st.error(f"Could not render {chart_name}: {e}")
-
 
         st.markdown("</div>", unsafe_allow_html=True)
 
