@@ -99,6 +99,7 @@ CHART_REQUIREMENTS: Dict[str, List[str]] = {
     "Structure Zone Averages":                 [],
     "Set Piece Landing Heatmap":               ["x2", "y2"],
     "Taker Stats Table":                       ["taker"],
+    "First Contact Location Map":             ["x2", "y2"],
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -401,8 +402,20 @@ def _infer_zone(x, y):
     return "penalty_spot"
 
 def _get_fcw(df):
-    if "first_contact_win" in df.columns: return bool01(df["first_contact_win"])
-    return get_set_piece_series(df).str.lower().isin(["successful","win","won"]).astype(int)
+    if "first_contact_win" in df.columns:
+        col = df["first_contact_win"]
+        # numeric path (already 0/1)
+        num = pd.to_numeric(col, errors="coerce")
+        if num.notna().any():
+            return (num > 0).astype(int)
+        # string path: 'Yes'/'No' survived or pre-normalization
+        return col.astype(str).str.strip().str.lower().isin(
+            ["yes","1","true","won","win","successful","success"]
+        ).astype(int)
+    # fallback: use outcome column
+    return get_set_piece_series(df).str.lower().isin(
+        ["successful","success","won","win"]
+    ).astype(int)
 
 def _get_sbw(df):
     if "second_ball_win" in df.columns: return bool01(df["second_ball_win"])
@@ -993,7 +1006,12 @@ def chart_taker_stats_table(df, theme_name, flip_y=False, style_overrides=None):
         sr=round(nsu/max(len(grp),1)*100,1)
         nl=int((grp["side"].astype(str).str.lower()=="left").sum()) if "side" in grp.columns else 0
         nr=int((grp["side"].astype(str).str.lower()=="right").sum()) if "side" in grp.columns else 0
-        rows.append({"taker":str(taker).title(),"sequences":ns,"inswing":ni,"outswing":no,"left":nl,"right":nr,"success_rate":sr})
+        # Extract player shirt number from taker column value
+        try:
+            taker_num = str(int(float(str(taker))))
+        except Exception:
+            taker_num = str(taker).strip()
+        rows.append({"taker":taker_num,"sequences":ns,"inswing":ni,"outswing":no,"left":nl,"right":nr,"success_rate":sr,"taker_num":taker_num})
     if not rows:
         fig,ax=_base_fig(s,(9,4)); ax.text(0.5,0.5,"No taker data",ha="center",va="center",color=s["text"],fontsize=12,transform=ax.transAxes); return fig
     sdf=pd.DataFrame(rows).sort_values("sequences",ascending=False).head(12).reset_index(drop=True)
@@ -1019,7 +1037,7 @@ def chart_taker_stats_table(df, theme_name, flip_y=False, style_overrides=None):
         ax.add_patch(FancyBboxPatch((bx-sz*0.22,by+sz*0.65*0.62),sz*0.22,sz*0.28*0.7,boxstyle="round,pad=0.01",facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=4))
         ax.add_patch(FancyBboxPatch((bx+sz*0.55,by+sz*0.65*0.62),sz*0.22,sz*0.28*0.7,boxstyle="round,pad=0.01",facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=4))
         ax.add_patch(plt.Circle((cx["shirt"],by+sz*0.65-sz*0.09*0.3),sz*0.09,facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=5))
-        ax.text(cx["shirt"],by+sz*0.65*0.38,str(row["sequences"]),ha="center",va="center",fontsize=max(s["tick_size"]-1,7),fontweight="bold",color=nm_c,zorder=6)
+        ax.text(cx["shirt"],by+sz*0.65*0.38,str(row["taker_num"]),ha="center",va="center",fontsize=max(s["tick_size"]-1,7),fontweight="bold",color=nm_c,zorder=6)
         ax.text(cx["name"],yc,row["taker"],ha="left",va="center",fontsize=s["tick_size"]+0.5,fontweight="bold",color=s["text"])
         for k in ["seq","ins","out","left","right"]:
             v={"seq":row["sequences"],"ins":row["inswing"],"out":row["outswing"],"left":row["left"],"right":row["right"]}[k]
@@ -1028,7 +1046,7 @@ def chart_taker_stats_table(df, theme_name, flip_y=False, style_overrides=None):
         ax.add_patch(Rectangle((bx_,yc-bh/2),mw,bh,facecolor=s["lines"],edgecolor="none",alpha=0.35,zorder=1))
         bfc=s.get("bar_colors",{}).get("default",s["accent"])
         ax.add_patch(Rectangle((bx_,yc-bh/2),mw*rate,bh,facecolor=bfc,edgecolor="none",alpha=0.90,zorder=2))
-        ax.text(bx_+mw*rate+0.06,yc,f"{row['success_rate']:.1f}%",ha="left",va="center",fontsize=s["tick_size"]-1,color=s["text"])
+        ax.text(bx_+mw+0.10,yc,f"{row['success_rate']:.1f}%",ha="left",va="center",fontsize=s["tick_size"]-1,color=s["text"])
         ax.axhline(yc-row_h/2+0.04,xmin=0.02,xmax=0.98,color=s["lines"],linewidth=0.4,alpha=0.3)
     if s["tight_layout"]: fig.tight_layout(pad=0.3)
     return fig
@@ -1206,46 +1224,35 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
         ax.plot([BOX_Y0, BOX_Y1], [SIX_X0, SIX_X0],
                 color=lc, lw=0.9, alpha=0.55, linestyle="--", zorder=5)
 
-    # ── "Avg players in box" badge ────────────────────────────────────────────
-        # ── "Avg players in box" badge ────────────────────────────────────────────
-    # Center it directly under "Box Front" and remove the diagonal guide lines
+    # ── "Avg players in box" badge — centred under Box Front zone ─────────────
+    # Box Front: x=72..83.5, centre_x=77.75  → badge sits below that area
+    box_front_cx = (72.0 + BOX_X0) / 2.0   # 77.75
     if not vert:
-        bx_, by_ = (BOX_X0 + BOX_X1) / 2.0, 7.5
+        bx_, by_ = box_front_cx, BOX_Y0 - 5.5   # below pitch, aligned to Box Front
     else:
-        bx_, by_ = 7.5, (BOX_X0 + BOX_X1) / 2.0
+        bx_, by_ = BOX_Y0 - 5.5, box_front_cx
 
+    # V-shape connector lines from bottom of Box Front zone to badge
+    if not vert:
+        ax.plot([box_front_cx - 2.5, bx_], [BOX_Y0, by_ + 2.7],
+                color=lc, lw=0.9, alpha=0.45, zorder=6, clip_on=False)
+        ax.plot([box_front_cx + 2.5, bx_], [BOX_Y0, by_ + 2.7],
+                color=lc, lw=0.9, alpha=0.45, zorder=6, clip_on=False)
+    else:
+        ax.plot([BOX_Y0, by_ + 2.7], [box_front_cx - 2.5, bx_],
+                color=lc, lw=0.9, alpha=0.45, zorder=6, clip_on=False)
+        ax.plot([BOX_Y0, by_ + 2.7], [box_front_cx + 2.5, bx_],
+                color=lc, lw=0.9, alpha=0.45, zorder=6, clip_on=False)
 
-    ax.add_patch(plt.Circle(
-        (bx_, by_), 2.5,
-        facecolor="#ff3b30",
-        edgecolor="white",
-        linewidth=1.4,
-        zorder=20,
-        clip_on=False
-    ))
-    ax.text(
-        bx_, by_, f"{avg_in_box:.1f}",
-        ha="center", va="center",
-        fontsize=max(s["tick_size"] + 1, 10),
-        fontweight="bold",
-        color="white",
-        zorder=21,
-        clip_on=False
-    )
-    ax.text(
-        bx_, by_ - 3.0 if not vert else by_,
-        "Avg. players\nin box",
-        ha="center",
-        va="top" if not vert else "center",
-        fontsize=max(s["tick_size"] - 2, 6),
-        color=s["muted"],
-        zorder=21,
-        clip_on=False
-    )
-
+    ax.add_patch(plt.Circle((bx_, by_), 2.5,
+                             facecolor="#ff3b30", edgecolor="white",
+                             linewidth=1.4, zorder=20, clip_on=False))
+    ax.text(bx_, by_, f"{avg_in_box:.1f}",
+            ha="center", va="center",
+            fontsize=max(s["tick_size"] + 1, 10), fontweight="bold",
+            color="white", zorder=21, clip_on=False)
     # label below badge
-    lbl_off = -3.2 if not vert else 0
-    ax.text(bx_, by_ - 3.0 if not vert else by_,
+    ax.text(bx_, by_ - 3.2 if not vert else by_,
             "Avg. players\nin box",
             ha="center", va="top",
             fontsize=max(s["tick_size"] - 2, 6),
@@ -1293,4 +1300,131 @@ CHART_BUILDERS = {
     "Structure Zone Averages":                 chart_structure_zone_averages,
     "Set Piece Landing Heatmap":               chart_set_piece_landing_heatmap,
     "Taker Stats Table":                       chart_taker_stats_table,
+    "First Contact Location Map":             chart_first_contact_map,
 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FIRST CONTACT LOCATION MAP
+# Shows x2/y2 delivery end positions, coloured & shaped by action type
+# (result column: shot / clearance / threat / header / cross / other)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Action type config: marker, colour_key, display label
+# Marker codes: 'o'=circle, '^'=triangle up, 'v'=tri down, 's'=square,
+#               'D'=diamond, 'P'=plus-filled, 'X'=x-filled, '*'=star
+_ACTION_CONFIG = {
+    "shot":        ("*",  "#FFD400", "Shot"),
+    "clearance":   ("v",  "#FF4D4D", "Clearance"),
+    "cleareance":  ("v",  "#FF4D4D", "Clearance"),   # handle common typo
+    "header":      ("^",  "#38BDF8", "Header"),
+    "threat":      ("D",  "#A78BFA", "Threat"),
+    "cross":       ("P",  "#22C55E", "Cross"),
+    "foul":        ("s",  "#F97316", "Foul"),
+    "other":       ("o",  "#94A3B8", "Other"),
+}
+
+def _normalise_action(val: str) -> str:
+    v = str(val).strip().lower()
+    # common spellings
+    if v in ("clearance","cleareance","cleared"): return "clearance"
+    if v in ("shot","shots","shoot"): return "shot"
+    if v in ("header","head","headed"): return "header"
+    if v in ("threat","dangerous","chance"): return "threat"
+    if v in ("cross","crossed"): return "cross"
+    if v in ("foul","fouled","foul won"): return "foul"
+    return v if v in _ACTION_CONFIG else "other"
+
+def chart_first_contact_map(df, theme_name, flip_y=False, style_overrides=None):
+    """
+    Scatter map at delivery end (x2/y2) coloured + shaped by action result.
+    First-contact win shown via edgecolor (gold=won, grey=lost).
+    """
+    s    = resolve_style(theme_name, style_overrides)
+    vert = s.get("pitch_vertical", False)
+    pitch = make_pitch(s, vert)
+    dff   = _prep(df, flip_y)
+
+    figsize = (6, 8.5) if vert else (10, 6.5)
+    fig, ax = _base_fig(s, figsize)
+    pitch.draw(ax=ax)
+    _setup_pitch_axes(ax, s, vert)
+
+    if s.get("show_thirds", False): _draw_thirds(ax, s, vert)
+    # silent zone overlay (no labels) for spatial context
+    _draw_zones(ax, s, _side_dominant(dff), alpha=0.12, vertical=vert, show_labels=False)
+
+    dd = dff.dropna(subset=["x2", "y2"]).copy()
+
+    # resolve action column
+    action_col = None
+    for c in ["result", "action", "event", "first_contact_result"]:
+        if c in dd.columns and dd[c].notna().any():
+            action_col = c; break
+
+    # resolve first_contact_win for edge highlight
+    dd["_fcw"] = _get_fcw(dd)
+
+    # allow user overrides from style
+    user_colours  = s.get("action_colors", {})   # e.g. {"shot": "#ffff00"}
+    visible_types = s.get("action_types_visible", None)  # None = show all
+
+    msz   = max(s["marker_size"] * 1.6, 80)
+    mew   = s["marker_edge_width"] + 0.5
+
+    if action_col and dd[action_col].notna().any():
+        dd["_action"] = dd[action_col].apply(_normalise_action)
+        # filter visible types if user has limited them
+        if visible_types:
+            dd = dd[dd["_action"].isin(visible_types)].copy()
+
+        for act, grp in dd.groupby("_action"):
+            cfg = _ACTION_CONFIG.get(act, ("o", "#94A3B8", act.title()))
+            marker_, base_color, label_ = cfg
+            color_ = user_colours.get(act, base_color)
+
+            px = grp["y2"].values if vert else grp["x2"].values
+            py = grp["x2"].values if vert else grp["y2"].values
+
+            for xi, yi, fcw in zip(px, py, grp["_fcw"].values):
+                edge_c = "#FFD400" if fcw == 1 else s["lines"]
+                ax.scatter(xi, yi,
+                           s=msz, marker=marker_, color=color_,
+                           edgecolors=edge_c, linewidths=mew,
+                           alpha=s["alpha"], zorder=9, clip_on=False)
+    else:
+        # no action column — just scatter all points
+        px = dd["y2"].values if vert else dd["x2"].values
+        py = dd["x2"].values if vert else dd["y2"].values
+        ax.scatter(px, py, s=msz, color=s.get("scatter_dot_color", s["accent"]),
+                   edgecolors=s["lines"], linewidths=mew,
+                   alpha=s["alpha"], zorder=9, clip_on=False)
+
+    # ── legend ────────────────────────────────────────────────────────────────
+    if s.get("show_legend", True) and action_col and len(dd):
+        present_actions = dd["_action"].unique() if "_action" in dd.columns else []
+        handles, labels = [], []
+        for act in present_actions:
+            cfg = _ACTION_CONFIG.get(act, ("o", "#94A3B8", act.title()))
+            marker_, base_color, label_ = cfg
+            color_ = user_colours.get(act, base_color)
+            handles.append(mpl.lines.Line2D([0],[0], marker=marker_, color="none",
+                                             markerfacecolor=color_,
+                                             markeredgecolor=s["lines"],
+                                             markeredgewidth=0.8,
+                                             markersize=9, label=label_))
+            labels.append(label_)
+        # add first-contact-win indicator
+        handles.append(mpl.lines.Line2D([0],[0], marker="o", color="none",
+                                         markerfacecolor="none",
+                                         markeredgecolor="#FFD400",
+                                         markeredgewidth=2.2,
+                                         markersize=9, label="FC Won (gold edge)"))
+        labels.append("FC Won (gold edge)")
+        leg = ax.legend(handles, labels, frameon=True,
+                        loc="upper center", bbox_to_anchor=(0.5, -0.04),
+                        ncol=min(4, len(labels)))
+        style_legend(leg, s)
+
+    chart_title(ax, "First Contact Location Map", s)
+    if s["tight_layout"]: fig.tight_layout()
+    return fig
