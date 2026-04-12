@@ -105,6 +105,24 @@ with st.sidebar:
         st.caption("Color for delivery end scatter points")
         scatter_dot_color = st.color_picker("Scatter dot color", base_theme["accent"])
 
+    with st.expander("🗺️ First Contact Map — Action Colors", expanded=False):
+        st.caption("Color per action type on the First Contact Location Map")
+        fc_shot_color      = st.color_picker("Shot",       "#FFD400")
+        fc_clearance_color = st.color_picker("Clearance",  "#FF4D4D")
+        fc_header_color    = st.color_picker("Header",     "#38BDF8")
+        fc_threat_color    = st.color_picker("Threat",     "#A78BFA")
+        fc_cross_color     = st.color_picker("Cross",      "#22C55E")
+        fc_foul_color      = st.color_picker("Foul",       "#F97316")
+        fc_other_color     = st.color_picker("Other",      "#94A3B8")
+        st.caption("Show / hide action types")
+        fc_show_shot      = st.checkbox("Show Shot",       value=True)
+        fc_show_clearance = st.checkbox("Show Clearance",  value=True)
+        fc_show_header    = st.checkbox("Show Header",     value=True)
+        fc_show_threat    = st.checkbox("Show Threat",     value=True)
+        fc_show_cross     = st.checkbox("Show Cross",      value=True)
+        fc_show_foul      = st.checkbox("Show Foul",       value=True)
+        fc_show_other     = st.checkbox("Show Other",      value=True)
+
     with st.expander("🎯 Arrow Colors (by delivery type)", expanded=False):
         st.caption("Override arrow colors per delivery type")
         arrow_inswing  = st.color_picker("Inswing",  base_theme["accent"])
@@ -136,6 +154,7 @@ with st.sidebar:
         "Zone Delivery Count Map - Right Corner",
         "Avg Players Per Zone - Left Corner",
         "Avg Players Per Zone - Right Corner",
+        "First Contact Location Map",
         "Set Piece Landing Heatmap",
         "Taker Stats Table",
     ]
