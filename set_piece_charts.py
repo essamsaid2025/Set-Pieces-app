@@ -1025,9 +1025,9 @@ def chart_taker_stats_table(df, theme_name, flip_y=False, style_overrides=None):
     ax.text(fw/2,fh-0.28,"Set Piece Taker Stats",ha="center",va="top",fontsize=s["title_size"]+2,fontweight="bold",color=s["text"])
     ax.text(fw/2,fh-0.62,"Sorted by number of set piece sequences taken",ha="center",va="top",fontsize=s["tick_size"],color=s["muted"])
     # "right" column removed — success bar is the last element
-    cx={"shirt":0.45,"seq":1.55,"ins":2.80,"out":3.85,"left":4.90,"rate":6.60}
+    cx={"shirt":0.45,"seq":1.55,"ins":2.75,"out":3.80,"right":4.80,"left":5.75,"rate":7.30}
     hy=fh-hh+0.05
-    for k,lbl in {"seq":"SEQ","ins":"INSWING","out":"OUTSWING","left":"LEFT","rate":"SUCCESS %"}.items():
+    for k,lbl in {"seq":"SEQ","ins":"INSWING","out":"OUTSWING","right":"RIGHT","left":"LEFT","rate":"SUCCESS %"}.items():
         ax.text(cx[k],hy,lbl,ha="center",va="bottom",fontsize=s["tick_size"]-1,color=s["muted"],fontweight="bold")
     ax.axhline(hy-0.02,xmin=0.02,xmax=0.98,color=s["lines"],linewidth=0.8,alpha=0.6)
     for i,row in sdf.iterrows():
@@ -1040,8 +1040,8 @@ def chart_taker_stats_table(df, theme_name, flip_y=False, style_overrides=None):
         ax.add_patch(plt.Circle((cx["shirt"],by+sz*0.65-sz*0.09*0.3),sz*0.09,facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=5))
         ax.text(cx["shirt"],by+sz*0.65*0.38,str(row["taker_num"]),ha="center",va="center",fontsize=max(s["tick_size"]-1,7),fontweight="bold",color=nm_c,zorder=6)
         # No duplicate taker number outside shirt — shirt number IS the identifier
-        for k in ["seq","ins","out","left"]:
-            v={"seq":row["sequences"],"ins":row["inswing"],"out":row["outswing"],"left":row["left"]}[k]
+        for k in ["seq","ins","out","right","left"]:
+            v={"seq":row["sequences"],"ins":row["inswing"],"out":row["outswing"],"right":row["right"],"left":row["left"]}[k]
             ax.text(cx[k],yc,str(v),ha="center",va="center",fontsize=s["tick_size"],color=s["text"])
         rate=row["success_rate"]/100.0; bx_=cx["rate"]-mw/2; bh=row_h*0.30
         ax.add_patch(Rectangle((bx_,yc-bh/2),mw,bh,facecolor=s["lines"],edgecolor="none",alpha=0.35,zorder=1))
@@ -1215,18 +1215,18 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
                     ha="center", va="center",
                     fontsize=fs_lbl, color=s["muted"], alpha=0.65, zorder=9)
 
-    # ── "Avg players in box" badge — centred inside Box Front zone ──────────────
-    # Box Front: x=72..83.5, y=BOX_Y0..BOX_Y1
-    # Badge placed at horizontal centre of Box Front, lower portion of the zone
-    box_front_cx = (72.0 + BOX_X0) / 2.0          # 77.75  (horizontal centre)
-    box_front_badge_y = BOX_Y0 + (BOX_Y1 - BOX_Y0) * 0.30   # lower 30% of zone
-
+    # ── "Avg players in box" badge — directly below "Box Front" text ─────────────
+    # Box Front zone centre: cx=77.75, cy=32.0
+    # "Box Front" label drawn at cy=32 (centre of zone, va=center)
+    # Badge placed ~6 units below the label text so it clearly sits under it
+    box_front_cx = (72.0 + BOX_X0) / 2.0   # 77.75  (horizontal centre of zone)
+    box_front_cy = (BOX_Y0 + BOX_Y1) / 2.0  # 32.0  (vertical centre = where text is)
+    # Badge is 6 units below the "Box Front" text
+    badge_offset = 6.5
     if not vert:
-        bx_, by_ = box_front_cx, box_front_badge_y
+        bx_, by_ = box_front_cx, box_front_cy - badge_offset
     else:
-        bx_, by_ = box_front_badge_y, box_front_cx
-
-    # No connector lines — badge sits directly inside the Box Front zone
+        bx_, by_ = box_front_cy - badge_offset, box_front_cx
 
     ax.add_patch(plt.Circle((bx_, by_), 2.5,
                              facecolor="#ff3b30", edgecolor="white",
@@ -1235,9 +1235,10 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
             ha="center", va="center",
             fontsize=max(s["tick_size"] + 1, 10), fontweight="bold",
             color="white", zorder=21, clip_on=False)
-    ax.text(bx_, by_ + 3.0 if not vert else by_,
+    # "Avg. players in box" label below the badge
+    ax.text(bx_, by_ - 3.2 if not vert else by_,
             "Avg. players\nin box",
-            ha="center", va="bottom",
+            ha="center", va="top",
             fontsize=max(s["tick_size"] - 2, 6),
             color=s["muted"], zorder=21, clip_on=False)
 
