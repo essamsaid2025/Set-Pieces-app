@@ -158,7 +158,7 @@ class SimplePitch:
 # ─────────────────────────────────────────────────────────────────────────────
 # STYLE UTILS
 # ─────────────────────────────────────────────────────────────────────────────
-def resolve_style(tn, ov=None): return build_chart_style(tn, ov or {})
+def resolve_style(theme_name, style_overrides=None): return build_chart_style(theme_name, style_overrides or {})
 
 def apply_rcparams(s):
     mpl.rcParams.update({
@@ -411,8 +411,8 @@ def _get_sbw(df):
 # ─────────────────────────────────────────────────────────────────────────────
 # DELIVERY TRAJECTORY CHARTS  (with zone labels)
 # ─────────────────────────────────────────────────────────────────────────────
-def _traj_chart(df, tn, flip_y, ov, title, corner_side):
-    s    = resolve_style(tn, ov)
+def _traj_chart(df, theme_name, flip_y, style_overrides, title, corner_side):
+    s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -466,17 +466,17 @@ def _traj_chart(df, tn, flip_y, ov, title, corner_side):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_delivery_trajectories_left(df, tn, flip_y=False, ov=None):
-    return _traj_chart(df, tn, flip_y, ov, "Delivery Trajectories — Left Corner", "left")
+def chart_delivery_trajectories_left(df, theme_name, flip_y=False, style_overrides=None):
+    return _traj_chart(df, theme_name, flip_y, style_overrides, "Delivery Trajectories — Left Corner", "left")
 
-def chart_delivery_trajectories_right(df, tn, flip_y=False, ov=None):
-    return _traj_chart(df, tn, flip_y, ov, "Delivery Trajectories — Right Corner", "right")
+def chart_delivery_trajectories_right(df, theme_name, flip_y=False, style_overrides=None):
+    return _traj_chart(df, theme_name, flip_y, style_overrides, "Delivery Trajectories — Right Corner", "right")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DELIVERY END SCATTER  — direct ax.scatter to guarantee visibility
 # ─────────────────────────────────────────────────────────────────────────────
-def _scatter_chart(df, tn, flip_y, ov, corner_side):
-    s    = resolve_style(tn, ov)
+def _scatter_chart(df, theme_name, flip_y, style_overrides, corner_side):
+    s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -546,17 +546,17 @@ def _scatter_chart(df, tn, flip_y, ov, corner_side):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_delivery_end_scatter_left(df, tn, flip_y=False, ov=None):
-    return _scatter_chart(df, tn, flip_y, ov, "left")
+def chart_delivery_end_scatter_left(df, theme_name, flip_y=False, style_overrides=None):
+    return _scatter_chart(df, theme_name, flip_y, style_overrides, "left")
 
-def chart_delivery_end_scatter_right(df, tn, flip_y=False, ov=None):
-    return _scatter_chart(df, tn, flip_y, ov, "right")
+def chart_delivery_end_scatter_right(df, theme_name, flip_y=False, style_overrides=None):
+    return _scatter_chart(df, theme_name, flip_y, style_overrides, "right")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ZONE DELIVERY COUNT MAP  (like pic 2 — heatmap intensity + counts)
 # ─────────────────────────────────────────────────────────────────────────────
-def _zone_count_map(df, tn, flip_y, ov, corner_side):
-    s     = resolve_style(tn, ov)
+def _zone_count_map(df, theme_name, flip_y, style_overrides, corner_side):
+    s     = resolve_style(theme_name, style_overrides)
     vert  = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -627,14 +627,14 @@ def _zone_count_map(df, tn, flip_y, ov, corner_side):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_zone_count_left(df, tn, flip_y=False, ov=None):  return _zone_count_map(df, tn, flip_y, ov, "left")
-def chart_zone_count_right(df, tn, flip_y=False, ov=None): return _zone_count_map(df, tn, flip_y, ov, "right")
+def chart_zone_count_left(df, theme_name, flip_y=False, style_overrides=None):  return _zone_count_map(df, theme_name, flip_y, style_overrides, "left")
+def chart_zone_count_right(df, theme_name, flip_y=False, style_overrides=None): return _zone_count_map(df, theme_name, flip_y, style_overrides, "right")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ALL OTHER PITCH CHARTS  — use show_labels=False
 # ─────────────────────────────────────────────────────────────────────────────
-def _pitch_setup(df, tn, flip_y, ov, figsize_h=(8,6), figsize_v=(6,8)):
-    s    = resolve_style(tn, ov)
+def _pitch_setup(df, theme_name, flip_y, style_overrides, figsize_h=(8,6), figsize_v=(6,8)):
+    s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -645,8 +645,8 @@ def _pitch_setup(df, tn, flip_y, ov, figsize_h=(8,6), figsize_v=(6,8)):
     _draw_zones(ax, s, _side_dominant(dff), alpha=0.16, vertical=vert, show_labels=False)
     return s, vert, pitch, dff, fig, ax
 
-def chart_delivery_start_map(df, tn, flip_y=False, ov=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, tn, flip_y, ov)
+def chart_delivery_start_map(df, theme_name, flip_y=False, style_overrides=None):
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
     dd = dff.dropna(subset=["x_start_plot","y_start_plot"]).copy()
     px = dd["y_start_plot"].values if vert else dd["x_start_plot"].values
     py = dd["x_start_plot"].values if vert else dd["y_start_plot"].values
@@ -657,8 +657,8 @@ def chart_delivery_start_map(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_delivery_heatmap(df, tn, flip_y=False, ov=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, tn, flip_y, ov)
+def chart_delivery_heatmap(df, theme_name, flip_y=False, style_overrides=None):
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
     dd = dff.dropna(subset=["x2","y2"]).copy()
     if len(dd):
         px = dd["y2"].values if vert else dd["x2"].values
@@ -673,8 +673,8 @@ def chart_delivery_heatmap(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_average_delivery_path(df, tn, flip_y=False, ov=None):
-    s    = resolve_style(tn, ov)
+def chart_average_delivery_path(df, theme_name, flip_y=False, style_overrides=None):
+    s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -716,8 +716,8 @@ def chart_average_delivery_path(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_heat_plus_trajectories(df, tn, flip_y=False, ov=None):
-    s    = resolve_style(tn, ov)
+def chart_heat_plus_trajectories(df, theme_name, flip_y=False, style_overrides=None):
+    s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -755,8 +755,8 @@ def chart_heat_plus_trajectories(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_trajectory_clusters(df, tn, flip_y=False, ov=None):
-    s    = resolve_style(tn, ov)
+def chart_trajectory_clusters(df, theme_name, flip_y=False, style_overrides=None):
+    s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -804,8 +804,8 @@ def chart_trajectory_clusters(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_shot_map(df, tn, flip_y=False, ov=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, tn, flip_y, ov)
+def chart_shot_map(df, theme_name, flip_y=False, style_overrides=None):
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
     dd = dff.dropna(subset=["x","y"]).copy()
     sz = s["marker_size"]*1.6
     if "xg" in dd.columns:
@@ -818,8 +818,8 @@ def chart_shot_map(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_second_ball_map(df, tn, flip_y=False, ov=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, tn, flip_y, ov)
+def chart_second_ball_map(df, theme_name, flip_y=False, style_overrides=None):
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
     dd = dff.dropna(subset=["x","y"]).copy()
     dd["sb"] = _get_sbw(dd)
     win = dd[dd["sb"]==1]; lose = dd[dd["sb"]==0]
@@ -842,8 +842,8 @@ def chart_second_ball_map(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_defensive_vulnerability_map(df, tn, flip_y=False, ov=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, tn, flip_y, ov)
+def chart_defensive_vulnerability_map(df, theme_name, flip_y=False, style_overrides=None):
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
     dd = dff.dropna(subset=["x","y"]).copy()
     if len(dd):
         px=dd["y"].values if vert else dd["x"].values
@@ -854,8 +854,8 @@ def chart_defensive_vulnerability_map(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_set_piece_landing_heatmap(df, tn, flip_y=False, ov=None):
-    s    = resolve_style(tn, ov)
+def chart_set_piece_landing_heatmap(df, theme_name, flip_y=False, style_overrides=None):
+    s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -877,8 +877,8 @@ def chart_set_piece_landing_heatmap(df, tn, flip_y=False, ov=None):
     return fig
 
 # ─── bar charts ──────────────────────────────────────────────────────────────
-def chart_delivery_length_distribution(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov); fig, ax = _base_fig(s, (7.6,4.8))
+def chart_delivery_length_distribution(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.6,4.8))
     dff = _prep(df, flip_y); dd = dff.dropna(subset=["x_start_plot","y_start_plot","x2","y2"]).copy()
     lengths = (((dd["x2"]-dd["x_start_plot"])**2+(dd["y2"]-dd["y_start_plot"])**2)**0.5 if len(dd) else pd.Series(dtype=float))
     bc = s.get("bar_colors",{}).get("default", s["accent"])
@@ -888,8 +888,8 @@ def chart_delivery_length_distribution(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_delivery_direction_map(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov); fig, ax = _base_fig(s, (7.6,4.8))
+def chart_delivery_direction_map(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.6,4.8))
     dff = _prep(df, flip_y); dd = dff.dropna(subset=["x_start_plot","y_start_plot","x2","y2"]).copy()
     if not len(dd): summary = pd.Series(dtype=float)
     else:
@@ -903,8 +903,8 @@ def chart_delivery_direction_map(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_outcome_distribution(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov); fig, ax = _base_fig(s, (7.4,4.6))
+def chart_outcome_distribution(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.4,4.6))
     counts = get_set_piece_series(df).str.lower().value_counts()
     bcm = s.get("bar_colors",{})
     colors = [bcm.get("success",s["success"]) if x in ["successful","corner","free_kick"]
@@ -916,8 +916,8 @@ def chart_outcome_distribution(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_target_zone_breakdown(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov); fig, ax = _base_fig(s, (7.4,4.6))
+def chart_target_zone_breakdown(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.4,4.6))
     dff = _prep(df, flip_y); counts = get_target_zone_series(dff).value_counts()
     bc = s.get("bar_colors",{}).get("default", s["accent"])
     ax.bar(counts.index, counts.values, color=bc, edgecolor=s["lines"], linewidth=0.8)
@@ -926,8 +926,8 @@ def chart_target_zone_breakdown(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_first_contact_win_by_zone(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov); fig, ax = _base_fig(s, (7.6,4.8))
+def chart_first_contact_win_by_zone(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.6,4.8))
     dff = _prep(df, flip_y); dd = dff.copy()
     dd["zone_calc"] = get_target_zone_series(dd); dd["fc_calc"] = _get_fcw(dd)
     summary = dd.groupby("zone_calc",dropna=False)["fc_calc"].mean().sort_values(ascending=False)*100
@@ -938,8 +938,8 @@ def chart_first_contact_win_by_zone(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_routine_breakdown(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov); fig, ax = _base_fig(s, (7.6,4.8))
+def chart_routine_breakdown(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.6,4.8))
     if "routine_type" in df.columns and df["routine_type"].notna().any():
         counts = df["routine_type"].fillna("unclassified").value_counts().head(10)
     else: counts = get_target_zone_series(df).value_counts().head(10)
@@ -949,8 +949,8 @@ def chart_routine_breakdown(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_taker_profile(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov); fig, ax = _base_fig(s, (7.8,4.8))
+def chart_taker_profile(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.8,4.8))
     if "taker" in df.columns and "sequence_id" in df.columns:
         seq = df.groupby("taker")["sequence_id"].nunique().sort_values(ascending=False).head(10)
     elif "taker" in df.columns: seq = df["taker"].value_counts().head(10)
@@ -961,8 +961,8 @@ def chart_taker_profile(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_structure_zone_averages(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov); fig, ax = _base_fig(s, (7.6,4.8))
+def chart_structure_zone_averages(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.6,4.8))
     cols = ["players_near_post","players_far_post","players_6yard","players_penalty"]
     existing = [c for c in cols if c in df.columns]
     if existing:
@@ -979,8 +979,8 @@ def chart_structure_zone_averages(df, tn, flip_y=False, ov=None):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_taker_stats_table(df, tn, flip_y=False, ov=None):
-    s = resolve_style(tn, ov)
+def chart_taker_stats_table(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides)
     if "taker" not in df.columns:
         fig,ax=_base_fig(s,(9,4)); ax.text(0.5,0.5,"No 'taker' column",ha="center",va="center",color=s["text"],fontsize=12,transform=ax.transAxes); return fig
     rows=[]
@@ -1087,8 +1087,8 @@ def _draw_gaussian_blob(ax, cx, cy, radius, peak_alpha, color="#ff2200"):
         ax.add_patch(plt.Circle((cx, cy), r, facecolor=color,
                                  edgecolor="none", alpha=a, zorder=3))
 
-def _avg_players_zone_map(df, tn, flip_y, ov, corner_side):
-    s    = resolve_style(tn, ov)
+def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
+    s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
@@ -1245,11 +1245,11 @@ def _avg_players_zone_map(df, tn, flip_y, ov, corner_side):
     if s["tight_layout"]: fig.tight_layout()
     return fig
 
-def chart_avg_players_left(df, tn, flip_y=False, ov=None):
-    return _avg_players_zone_map(df, tn, flip_y, ov, "left")
+def chart_avg_players_left(df, theme_name, flip_y=False, style_overrides=None):
+    return _avg_players_zone_map(df, theme_name, flip_y, style_overrides, "left")
 
-def chart_avg_players_right(df, tn, flip_y=False, ov=None):
-    return _avg_players_zone_map(df, tn, flip_y, ov, "right")
+def chart_avg_players_right(df, theme_name, flip_y=False, style_overrides=None):
+    return _avg_players_zone_map(df, theme_name, flip_y, style_overrides, "right")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
