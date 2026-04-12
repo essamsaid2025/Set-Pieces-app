@@ -1015,18 +1015,19 @@ def chart_taker_stats_table(df, theme_name, flip_y=False, style_overrides=None):
     if not rows:
         fig,ax=_base_fig(s,(9,4)); ax.text(0.5,0.5,"No taker data",ha="center",va="center",color=s["text"],fontsize=12,transform=ax.transAxes); return fig
     sdf=pd.DataFrame(rows).sort_values("sequences",ascending=False).head(12).reset_index(drop=True)
-    n=len(sdf); row_h=0.72; hh=1.0; fw=9.5; fh=hh+n*row_h+0.4
+    n=len(sdf); row_h=0.72; hh=1.0; fw=9.0; fh=hh+n*row_h+0.4
     apply_rcparams(s)
     fig=plt.figure(figsize=(fw,fh)); fig.patch.set_facecolor(s["bg"])
     ax=fig.add_axes([0,0,1,1]); ax.set_xlim(0,fw); ax.set_ylim(0,fh)
     ax.set_facecolor(s["bg"]); ax.axis("off")
     bc_s=s.get("shirt_body_color",s["accent"]); sl_c=s.get("shirt_sleeve_color",s["panel"]); nm_c=s.get("shirt_number_color",s["bg"])
-    mw=2.2
+    mw=2.0   # bar width; % label placed after bar
     ax.text(fw/2,fh-0.28,"Set Piece Taker Stats",ha="center",va="top",fontsize=s["title_size"]+2,fontweight="bold",color=s["text"])
     ax.text(fw/2,fh-0.62,"Sorted by number of set piece sequences taken",ha="center",va="top",fontsize=s["tick_size"],color=s["muted"])
-    cx={"shirt":0.40,"name":1.05,"seq":3.55,"ins":4.40,"out":5.25,"left":6.05,"right":6.85,"rate":7.80}
+    # "right" column removed — success bar is the last element
+    cx={"shirt":0.45,"seq":1.55,"ins":2.80,"out":3.85,"left":4.90,"rate":6.60}
     hy=fh-hh+0.05
-    for k,lbl in {"seq":"SEQ","ins":"INSWING","out":"OUTSWING","left":"LEFT","right":"RIGHT","rate":"SUCCESS %"}.items():
+    for k,lbl in {"seq":"SEQ","ins":"INSWING","out":"OUTSWING","left":"LEFT","rate":"SUCCESS %"}.items():
         ax.text(cx[k],hy,lbl,ha="center",va="bottom",fontsize=s["tick_size"]-1,color=s["muted"],fontweight="bold")
     ax.axhline(hy-0.02,xmin=0.02,xmax=0.98,color=s["lines"],linewidth=0.8,alpha=0.6)
     for i,row in sdf.iterrows():
@@ -1038,9 +1039,9 @@ def chart_taker_stats_table(df, theme_name, flip_y=False, style_overrides=None):
         ax.add_patch(FancyBboxPatch((bx+sz*0.55,by+sz*0.65*0.62),sz*0.22,sz*0.28*0.7,boxstyle="round,pad=0.01",facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=4))
         ax.add_patch(plt.Circle((cx["shirt"],by+sz*0.65-sz*0.09*0.3),sz*0.09,facecolor=sl_c,edgecolor=s["lines"],linewidth=0.5,zorder=5))
         ax.text(cx["shirt"],by+sz*0.65*0.38,str(row["taker_num"]),ha="center",va="center",fontsize=max(s["tick_size"]-1,7),fontweight="bold",color=nm_c,zorder=6)
-        ax.text(cx["name"],yc,row["taker"],ha="left",va="center",fontsize=s["tick_size"]+0.5,fontweight="bold",color=s["text"])
-        for k in ["seq","ins","out","left","right"]:
-            v={"seq":row["sequences"],"ins":row["inswing"],"out":row["outswing"],"left":row["left"],"right":row["right"]}[k]
+        # No duplicate taker number outside shirt — shirt number IS the identifier
+        for k in ["seq","ins","out","left"]:
+            v={"seq":row["sequences"],"ins":row["inswing"],"out":row["outswing"],"left":row["left"]}[k]
             ax.text(cx[k],yc,str(v),ha="center",va="center",fontsize=s["tick_size"],color=s["text"])
         rate=row["success_rate"]/100.0; bx_=cx["rate"]-mw/2; bh=row_h*0.30
         ax.add_patch(Rectangle((bx_,yc-bh/2),mw,bh,facecolor=s["lines"],edgecolor="none",alpha=0.35,zorder=1))
@@ -1129,11 +1130,11 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
     pitch.draw(ax=ax)
     _setup_pitch_axes(ax, s, vert)
 
-    # zoom to attacking end (box + small buffer)
+    # zoom to attacking end — same box proportions as other charts
     if not vert:
-        ax.set_xlim(63, 104); ax.set_ylim(-4, 68)
+        ax.set_xlim(68, 103); ax.set_ylim(-1, 65)
     else:
-        ax.set_xlim(-4, 68);  ax.set_ylim(63, 104)
+        ax.set_xlim(-1, 65);  ax.set_ylim(68, 103)
 
     # ── colour ramp: very dark red → bright red ───────────────────────────────
     _RED_LOW  = np.array(mpl.colors.to_rgb("#1c0404"))  # near-black red
@@ -1214,35 +1215,18 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
                     ha="center", va="center",
                     fontsize=fs_lbl, color=s["muted"], alpha=0.65, zorder=9)
 
-    # ── dashed dividers matching reference image ──────────────────────────────
-    lc = s.get("pitch_lines", "#FFFFFF")
-    # vertical dashed lines at 6-yard box boundary (x=SIX_X0)
-    if not vert:
-        ax.plot([SIX_X0, SIX_X0], [BOX_Y0, BOX_Y1],
-                color=lc, lw=0.9, alpha=0.55, linestyle="--", zorder=5)
-    else:
-        ax.plot([BOX_Y0, BOX_Y1], [SIX_X0, SIX_X0],
-                color=lc, lw=0.9, alpha=0.55, linestyle="--", zorder=5)
+    # ── "Avg players in box" badge — centred inside Box Front zone ──────────────
+    # Box Front: x=72..83.5, y=BOX_Y0..BOX_Y1
+    # Badge placed at horizontal centre of Box Front, lower portion of the zone
+    box_front_cx = (72.0 + BOX_X0) / 2.0          # 77.75  (horizontal centre)
+    box_front_badge_y = BOX_Y0 + (BOX_Y1 - BOX_Y0) * 0.30   # lower 30% of zone
 
-    # ── "Avg players in box" badge — centred under Box Front zone ─────────────
-    # Box Front: x=72..83.5, centre_x=77.75  → badge sits below that area
-    box_front_cx = (72.0 + BOX_X0) / 2.0   # 77.75
     if not vert:
-        bx_, by_ = box_front_cx, BOX_Y0 - 5.5   # below pitch, aligned to Box Front
+        bx_, by_ = box_front_cx, box_front_badge_y
     else:
-        bx_, by_ = BOX_Y0 - 5.5, box_front_cx
+        bx_, by_ = box_front_badge_y, box_front_cx
 
-    # V-shape connector lines from bottom of Box Front zone to badge
-    if not vert:
-        ax.plot([box_front_cx - 2.5, bx_], [BOX_Y0, by_ + 2.7],
-                color=lc, lw=0.9, alpha=0.45, zorder=6, clip_on=False)
-        ax.plot([box_front_cx + 2.5, bx_], [BOX_Y0, by_ + 2.7],
-                color=lc, lw=0.9, alpha=0.45, zorder=6, clip_on=False)
-    else:
-        ax.plot([BOX_Y0, by_ + 2.7], [box_front_cx - 2.5, bx_],
-                color=lc, lw=0.9, alpha=0.45, zorder=6, clip_on=False)
-        ax.plot([BOX_Y0, by_ + 2.7], [box_front_cx + 2.5, bx_],
-                color=lc, lw=0.9, alpha=0.45, zorder=6, clip_on=False)
+    # No connector lines — badge sits directly inside the Box Front zone
 
     ax.add_patch(plt.Circle((bx_, by_), 2.5,
                              facecolor="#ff3b30", edgecolor="white",
@@ -1251,10 +1235,9 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
             ha="center", va="center",
             fontsize=max(s["tick_size"] + 1, 10), fontweight="bold",
             color="white", zorder=21, clip_on=False)
-    # label below badge
-    ax.text(bx_, by_ - 3.2 if not vert else by_,
+    ax.text(bx_, by_ + 3.0 if not vert else by_,
             "Avg. players\nin box",
-            ha="center", va="top",
+            ha="center", va="bottom",
             fontsize=max(s["tick_size"] - 2, 6),
             color=s["muted"], zorder=21, clip_on=False)
 
