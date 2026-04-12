@@ -1207,31 +1207,43 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
                 color=lc, lw=0.9, alpha=0.55, linestyle="--", zorder=5)
 
     # ── "Avg players in box" badge ────────────────────────────────────────────
+        # ── "Avg players in box" badge ────────────────────────────────────────────
+    # Center it directly under "Box Front" and remove the diagonal guide lines
     if not vert:
-        bx_, by_ = 91.5, -3.2
+        box_front_x = 72.0 + (BOX_X0 - 72.0) / 2.0
+        bx_, by_ = box_front_x, 7.5
     else:
-        bx_, by_ = -3.2, 91.5
+        box_front_y = 72.0 + (BOX_X0 - 72.0) / 2.0
+        bx_, by_ = 7.5, box_front_y
 
-    # connecting lines (V-shape like reference)
-    conn_y = BOX_Y0 if not vert else BOX_X0
-    if not vert:
-        ax.plot([SIX_X0 - 2, bx_], [BOX_Y0, by_ + 2.6],
-                color=lc, lw=0.9, alpha=0.45, zorder=6)
-        ax.plot([SIX_X0 + 2, bx_], [BOX_Y0, by_ + 2.6],
-                color=lc, lw=0.9, alpha=0.45, zorder=6)
-    else:
-        ax.plot([BOX_Y0, by_ + 2.6], [SIX_X0 - 2, bx_],
-                color=lc, lw=0.9, alpha=0.45, zorder=6)
-        ax.plot([BOX_Y0, by_ + 2.6], [SIX_X0 + 2, bx_],
-                color=lc, lw=0.9, alpha=0.45, zorder=6)
+    ax.add_patch(plt.Circle(
+        (bx_, by_), 2.5,
+        facecolor="#ff3b30",
+        edgecolor="white",
+        linewidth=1.4,
+        zorder=20,
+        clip_on=False
+    ))
+    ax.text(
+        bx_, by_, f"{avg_in_box:.1f}",
+        ha="center", va="center",
+        fontsize=max(s["tick_size"] + 1, 10),
+        fontweight="bold",
+        color="white",
+        zorder=21,
+        clip_on=False
+    )
+    ax.text(
+        bx_, by_ - 3.0 if not vert else by_,
+        "Avg. players\nin box",
+        ha="center",
+        va="top" if not vert else "center",
+        fontsize=max(s["tick_size"] - 2, 6),
+        color=s["muted"],
+        zorder=21,
+        clip_on=False
+    )
 
-    ax.add_patch(plt.Circle((bx_, by_), 2.5,
-                             facecolor="#ff3b30", edgecolor="white",
-                             linewidth=1.4, zorder=20, clip_on=False))
-    ax.text(bx_, by_, f"{avg_in_box:.1f}",
-            ha="center", va="center",
-            fontsize=max(s["tick_size"] + 1, 10), fontweight="bold",
-            color="white", zorder=21, clip_on=False)
     # label below badge
     lbl_off = -3.2 if not vert else 0
     ax.text(bx_, by_ - 3.0 if not vert else by_,
