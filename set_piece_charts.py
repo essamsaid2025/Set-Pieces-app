@@ -626,19 +626,19 @@ def _zone_count_map(df, theme_name, flip_y, style_overrides, corner_side):
         in_box = dd[(dd["x2"] >= BOX_X0) & (dd["y2"] >= BOX_Y0) & (dd["y2"] <= BOX_Y1)]
         avg = round(len(in_box) / total * 5, 1)
 
-        bx_, by_ = (32, 102) if vert else (84, 68)
-        ax.add_patch(plt.Circle((bx_, by_), 2.5, facecolor=s["danger"],
-                                 edgecolor=s["pitch_lines"], linewidth=1, zorder=5))
-        ax.text(bx_, by_, f"{avg:.1f}", ha="center", va="center",
-                fontsize=max(s["tick_size"], 9), fontweight="bold", color="white", zorder=6)
-        lby = 100 if vert else 66
-        ax.text(bx_, lby, "Avg. players\nin box", ha="center", va="top",
-                fontsize=max(s["tick_size"]-2, 6), color=s["muted"], zorder=6)
-    
-        lbl = "Right Side Corners" if corner_side == "right" else "Left Side Corners"
-        chart_title(ax, lbl, s)
-        if s["tight_layout"]: fig.tight_layout()
-        return fig
+    bx_, by_ = (32, 97) if vert else (84, 63.5)
+    ax.add_patch(plt.Circle((bx_, by_), 2.5, facecolor=s["danger"],
+                             edgecolor=s["pitch_lines"], linewidth=1, zorder=5))
+    ax.text(bx_, by_, f"{avg:.1f}", ha="center", va="center",
+            fontsize=max(s["tick_size"], 9), fontweight="bold", color="white", zorder=6)
+    lby = 96 if vert else 60.5
+    ax.text(bx_, lby, "Avg. players\nin box", ha="center", va="top",
+            fontsize=max(s["tick_size"]-2, 6), color=s["muted"], zorder=6)
+
+    lbl = "Right Side Corners" if corner_side == "right" else "Left Side Corners"
+    chart_title(ax, lbl, s)
+    if s["tight_layout"]: fig.tight_layout()
+    return fig
 
 def chart_zone_count_left(df, theme_name, flip_y=False, style_overrides=None):  return _zone_count_map(df, theme_name, flip_y, style_overrides, "left")
 def chart_zone_count_right(df, theme_name, flip_y=False, style_overrides=None): return _zone_count_map(df, theme_name, flip_y, style_overrides, "right")
@@ -1215,18 +1215,17 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
                     ha="center", va="center",
                     fontsize=fs_lbl, color=s["muted"], alpha=0.65, zorder=9)
 
-    # ── "Avg players in box" badge — directly below "Box Front" text ─────────────
-    # Box Front zone centre: cx=77.75, cy=32.0
-    # "Box Front" label drawn at cy=32 (centre of zone, va=center)
-    # Badge placed ~6 units below the label text so it clearly sits under it
-    box_front_cx = (72.0 + BOX_X0) / 2.0   # 77.75  (horizontal centre of zone)
-    box_front_cy = (BOX_Y0 + BOX_Y1) / 2.0  # 32.0  (vertical centre = where text is)
-    # Badge is 6 units below the "Box Front" text
-    badge_offset = 6.5
+    # ── "Avg players in box" badge stacked under "Box Front" label ──────────────
+    # Box Front zone: x=72..83.5, y=BOX_Y0(13.84)..BOX_Y1(50.16)
+    # "Box Front" label is at TOP of zone (ry + rh*0.88, va=top) — set above
+    # Badge sits below label; "Avg. players" text below badge
+    box_front_cx = (72.0 + BOX_X0) / 2.0   # 77.75 horizontal centre
     if not vert:
-        bx_, by_ = box_front_cx, box_front_cy - badge_offset
+        bx_ = box_front_cx
+        by_ = BOX_Y1 - 14.0          # badge y: ~36.2, below label at top
     else:
-        bx_, by_ = box_front_cy - badge_offset, box_front_cx
+        bx_ = BOX_Y1 - 14.0
+        by_ = box_front_cx
 
     ax.add_patch(plt.Circle((bx_, by_), 2.5,
                              facecolor="#ff3b30", edgecolor="white",
@@ -1235,12 +1234,16 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
             ha="center", va="center",
             fontsize=max(s["tick_size"] + 1, 10), fontweight="bold",
             color="white", zorder=21, clip_on=False)
-    # "Avg. players in box" label below the badge
-    ax.text(bx_, by_ - 3.2 if not vert else by_,
-            "Avg. players\nin box",
-            ha="center", va="top",
-            fontsize=max(s["tick_size"] - 2, 6),
-            color=s["muted"], zorder=21, clip_on=False)
+    if not vert:
+        ax.text(bx_, by_ - 3.5, "Avg. players\nin box",
+                ha="center", va="top",
+                fontsize=max(s["tick_size"] - 2, 6),
+                color=s["muted"], zorder=21, clip_on=False)
+    else:
+        ax.text(bx_ - 3.5, by_, "Avg. players\nin box",
+                ha="right", va="center",
+                fontsize=max(s["tick_size"] - 2, 6),
+                color=s["muted"], zorder=21, clip_on=False)
 
     side_lbl = f"{'Left' if corner_side=='left' else 'Right'} Side Corners — Avg Players per Zone"
     chart_title(ax, side_lbl, s)
