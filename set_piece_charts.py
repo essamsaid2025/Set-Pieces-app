@@ -1224,7 +1224,7 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
         bx_ = box_front_cx + 5          # 77.75
         by_ = arc_bottom_y - 1.5    # 21.35 — just below the arc
     else:
-        bx_ = arc_bottom_y + 3
+        bx_ = arc_bottom_y + 6
         by_ = box_front_cx - 2
 
     ax.add_patch(plt.Circle((bx_, by_), 2.5,
