@@ -1221,7 +1221,7 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
     box_front_cx = (72.0 + BOX_X0) / 2.0   # 77.75 — centre of Box Front zone
     arc_bottom_y  = 32.0 - 9.15             # 22.85 — lowest point of penalty arc
     if not vert:
-        bx_ = box_front_cx          # 77.75
+        bx_ = box_front_cx + 5          # 77.75
         by_ = arc_bottom_y - 1.5    # 21.35 — just below the arc
     else:
         bx_ = arc_bottom_y - 1.5
