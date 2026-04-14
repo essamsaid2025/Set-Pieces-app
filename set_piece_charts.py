@@ -626,12 +626,12 @@ def _zone_count_map(df, theme_name, flip_y, style_overrides, corner_side):
         in_box = dd[(dd["x2"] >= BOX_X0) & (dd["y2"] >= BOX_Y0) & (dd["y2"] <= BOX_Y1)]
         avg = round(len(in_box) / total * 5, 1)
 
-    bx_, by_ = (32, 97) if vert else (84, 63.5)
+    bx_, by_ = (32, 102) if vert else (84, 68)
     ax.add_patch(plt.Circle((bx_, by_), 2.5, facecolor=s["danger"],
                              edgecolor=s["pitch_lines"], linewidth=1, zorder=5))
     ax.text(bx_, by_, f"{avg:.1f}", ha="center", va="center",
             fontsize=max(s["tick_size"], 9), fontweight="bold", color="white", zorder=6)
-    lby = 96 if vert else 60.5
+    lby = 100 if vert else 66
     ax.text(bx_, lby, "Avg. players\nin box", ha="center", va="top",
             fontsize=max(s["tick_size"]-2, 6), color=s["muted"], zorder=6)
 
