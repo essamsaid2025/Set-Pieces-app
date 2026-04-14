@@ -336,16 +336,16 @@ def _curve_rad(dtype, corner_label):
     d = str(dtype).lower()
     if corner_label == "right_top":
         if d == "inswing": return 0.30
-        if d == "outswing": return -0.30
+        if d == "outswing": return -0.15
     elif corner_label == "right_bottom":
         if d == "inswing": return -0.30
-        if d == "outswing": return 0.30
+        if d == "outswing": return 0.15
     elif corner_label == "left_top":
         if d == "inswing": return -0.30
-        if d == "outswing": return 0.30
+        if d == "outswing": return 0.15
     elif corner_label == "left_bottom":
         if d == "inswing": return 0.30
-        if d == "outswing": return -0.30
+        if d == "outswing": return -0.15
     return 0.0
 
 def _prep(df, flip_y=False):
