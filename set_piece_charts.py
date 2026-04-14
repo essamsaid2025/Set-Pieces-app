@@ -626,12 +626,12 @@ def _zone_count_map(df, theme_name, flip_y, style_overrides, corner_side):
         in_box = dd[(dd["x2"] >= BOX_X0) & (dd["y2"] >= BOX_Y0) & (dd["y2"] <= BOX_Y1)]
         avg = round(len(in_box) / total * 5, 1)
 
-    bx_, by_ = (32, 102) if vert else (84, 68)
+    bx_, by_ = (32, 97) if vert else (84, 63.5)
     ax.add_patch(plt.Circle((bx_, by_), 2.5, facecolor=s["danger"],
                              edgecolor=s["pitch_lines"], linewidth=1, zorder=5))
     ax.text(bx_, by_, f"{avg:.1f}", ha="center", va="center",
             fontsize=max(s["tick_size"], 9), fontweight="bold", color="white", zorder=6)
-    lby = 100 if vert else 66
+    lby = 96 if vert else 60.5
     ax.text(bx_, lby, "Avg. players\nin box", ha="center", va="top",
             fontsize=max(s["tick_size"]-2, 6), color=s["muted"], zorder=6)
 
@@ -1210,21 +1210,21 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
                     ha="center", va="bottom",
                     fontsize=fs_lbl, color=s["muted"], alpha=0.90, zorder=9)
         else:
-            # zones without data: just the label
-            ax.text(cx_, cy_, label.replace("\n", " "),
-                    ha="center", va="center",
+            # Box Front zone (no player data): label at TOP, badge will go below
+            ax.text(cx_, ry + rh * 0.88, label.replace("\n", " "),
+                    ha="center", va="top",
                     fontsize=fs_lbl, color=s["muted"], alpha=0.65, zorder=9)
 
-    # ── "Avg players in box" badge stacked under "Box Front" label ──────────────
-    # Box Front zone: x=72..83.5, y=BOX_Y0(13.84)..BOX_Y1(50.16)
-    # "Box Front" label is at TOP of zone (ry + rh*0.88, va=top) — set above
-    # Badge sits below label; "Avg. players" text below badge
-    box_front_cx = (72.0 + BOX_X0) / 2.0   # 77.75 horizontal centre
+    # ── "Avg players in box" badge — under the penalty arc ──────────────────────
+    # Arc centre: (BOX_X0=83.5, 32), radius 9.15  → arc bottom ≈ y=22.85
+    # Badge sits just below the arc, horizontally centred in Box Front zone
+    box_front_cx = (72.0 + BOX_X0) / 2.0   # 77.75 — centre of Box Front zone
+    arc_bottom_y  = 32.0 - 9.15             # 22.85 — lowest point of penalty arc
     if not vert:
-        bx_ = box_front_cx
-        by_ = BOX_Y1 - 14.0          # badge y: ~36.2, below label at top
+        bx_ = box_front_cx          # 77.75
+        by_ = arc_bottom_y - 1.5    # 21.35 — just below the arc
     else:
-        bx_ = BOX_Y1 - 14.0
+        bx_ = arc_bottom_y - 1.5
         by_ = box_front_cx
 
     ax.add_patch(plt.Circle((bx_, by_), 2.5,
@@ -1235,7 +1235,7 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
             fontsize=max(s["tick_size"] + 1, 10), fontweight="bold",
             color="white", zorder=21, clip_on=False)
     if not vert:
-        ax.text(bx_, by_ - 3.5, "Avg. players\nin box",
+        ax.text(bx_, by_ - 3.2, "Avg. players\nin box",
                 ha="center", va="top",
                 fontsize=max(s["tick_size"] - 2, 6),
                 color=s["muted"], zorder=21, clip_on=False)
