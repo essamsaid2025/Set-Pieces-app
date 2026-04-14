@@ -144,10 +144,14 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("## 📊 Charts")
+
     all_charts = list(CHART_BUILDERS.keys())
-    default_charts = [
+
+    # ── attacking defaults ───────────────────────────────────────────────────
+    attacking_defaults = [
         "Delivery Trajectories - Left Corners",
         "Delivery Trajectories - Right Corners",
+        "Attack Free Kick Trajectories",
         "Delivery End Scatter - Left Corner",
         "Delivery End Scatter - Right Corner",
         "Zone Delivery Count Map - Left Corner",
@@ -158,13 +162,43 @@ with st.sidebar:
         "Set Piece Landing Heatmap",
         "Taker Stats Table",
     ]
-    # Guard: remove any default that isn't in all_charts (handles stale deployments)
-    safe_defaults = [c for c in default_charts if c in all_charts]
-    selected_charts = st.multiselect("Choose charts", all_charts, default=safe_defaults)
+
+    # ── defensive defaults ───────────────────────────────────────────────────
+    defensive_defaults = [
+        "Defensive Shape Map",
+        "Defender vs Attacker Zone Matchup",
+        "Clearance Outcome Map",
+        "Set Piece Conceded Heatmap",
+        "Defensive Success Rate By Zone",
+        "First Contact Win Rate Trend",
+        "Second Ball Recovery Map",
+    ]
+
+    st.markdown("#### ⚔️ Attacking Charts")
+    attacking_charts = st.multiselect(
+        "Attacking charts",
+        [c for c in all_charts if c not in defensive_defaults],
+        default=[c for c in attacking_defaults if c in all_charts],
+        label_visibility="collapsed",
+    )
+
+    st.markdown("#### 🛡️ Defensive Charts")
+    st.caption(
+        "These charts use: **result** (clearance detection), **first_contact_win**, "
+        "**second_ball_win**, **defenders_near_post / defenders_far_post**, and **opponent** columns."
+    )
+    defensive_charts = st.multiselect(
+        "Defensive charts",
+        defensive_defaults,
+        default=[c for c in defensive_defaults if c in all_charts],
+        label_visibility="collapsed",
+    )
+
+    selected_charts = attacking_charts + defensive_charts
 
     with st.expander("Chart requirements", expanded=False):
         for ch in selected_charts:
-            st.write(f"**{ch}** → " + ", ".join(CHART_REQUIREMENTS[ch]))
+            st.write(f"**{ch}** → " + ", ".join(CHART_REQUIREMENTS.get(ch, [])))
 
     generate_clicked = st.button("Generate Set Piece Analysis", use_container_width=True)
 
@@ -202,12 +236,12 @@ style_overrides = {
     "tight_layout": tight_layout,
     "export_dpi": export_dpi,
     "heatmap_cmap": heatmap_cmap,
-    # ── pitch layout ─────────────────────────────────
+    # ── pitch layout ──────────────────────────────────────────────────────────
     "pitch_vertical": pitch_vertical,
     "show_thirds":    show_thirds,
-    # ── scatter dot color ─────────────────────────────
+    # ── scatter dot color ─────────────────────────────────────────────────────
     "scatter_dot_color": scatter_dot_color,
-    # ── arrow colours ────────────────────────────────
+    # ── arrow colours ─────────────────────────────────────────────────────────
     "arrow_colors": {
         "inswing":  arrow_inswing,
         "outswing": arrow_outswing,
@@ -215,13 +249,13 @@ style_overrides = {
         "driven":   arrow_driven,
         "short":    arrow_short,
     },
-    # ── bar colours ───────────────────────────────────
+    # ── bar colours ───────────────────────────────────────────────────────────
     "bar_colors": {
         "default": bar_default,
         "success": bar_success,
         "danger":  bar_danger,
     },
-    # ── shirt colours ─────────────────────────────────
+    # ── shirt colours ─────────────────────────────────────────────────────────
     "shirt_body_color":   shirt_body,
     "shirt_sleeve_color": shirt_sleeve,
     "shirt_number_color": shirt_number,
@@ -244,6 +278,27 @@ with left_col:
             Marker size: <b>{marker_size}</b><br>
             Line width: <b>{line_width}</b><br>
             Export DPI: <b>{export_dpi}</b>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── Defensive column guide ────────────────────────────────────────────────
+    st.markdown('<div class="panel-card">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-title">🛡️ Defensive Column Guide</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="panel-note">
+        The defensive charts use these optional columns:<br><br>
+        <b>first_contact_win</b> — yes/no or 1/0<br>
+        <b>second_ball_win</b> — yes/no or 1/0<br>
+        <b>result</b> — clearance / shot / header…<br>
+        <b>outcome</b> — Successful / Unsuccessful<br>
+        <b>defenders_near_post</b> — integer count<br>
+        <b>defenders_far_post</b> — integer count<br>
+        <b>opponent</b> — match label for trend chart<br><br>
+        Charts degrade gracefully when columns are missing.
         </div>
         """,
         unsafe_allow_html=True,
@@ -279,6 +334,7 @@ with right_col:
         st.write("Columns:", list(df.columns))
         st.dataframe(df.head(25), use_container_width=True)
 
+    # ── Filters ───────────────────────────────────────────────────────────────
     filter_cols = st.columns(4)
 
     with filter_cols[0]:
@@ -288,6 +344,14 @@ with right_col:
                 selected_sp = st.multiselect("Set piece types", sp_values, default=sp_values)
                 if selected_sp:
                     df = df[df["set_piece_type"].isin(selected_sp)].copy()
+
+        # also support raw 'set_piece' column before normalisation
+        elif "set_piece" in df.columns:
+            sp_values = [x for x in df["set_piece"].dropna().astype(str).unique().tolist() if x and x != "nan"]
+            if sp_values:
+                selected_sp = st.multiselect("Set piece types", sp_values, default=sp_values)
+                if selected_sp:
+                    df = df[df["set_piece"].isin(selected_sp)].copy()
 
     with filter_cols[1]:
         if "team" in df.columns:
@@ -313,6 +377,14 @@ with right_col:
                 if selected_delivery:
                     df = df[df["delivery_type"].isin(selected_delivery)].copy()
 
+    # ── Opponent filter (for trend chart) ────────────────────────────────────
+    if "opponent" in df.columns:
+        opps = [x for x in df["opponent"].dropna().astype(str).unique().tolist() if x and x != "nan"]
+        if len(opps) > 1:
+            selected_opps = st.multiselect("Opponent (for trend chart)", opps, default=opps)
+            if selected_opps:
+                df = df[df["opponent"].isin(selected_opps)].copy()
+
     if not generate_clicked:
         render_placeholder(
             "Ready to generate",
@@ -321,15 +393,31 @@ with right_col:
         st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
 
+    # ── Render charts ─────────────────────────────────────────────────────────
     figures = []
 
+    # Section headers
+    att_set = set(attacking_charts)
+    def_set = set(defensive_charts)
+    shown_att_header = False
+    shown_def_header = False
+
     for chart_name in selected_charts:
-        req = CHART_REQUIREMENTS[chart_name]
+        # section header
+        if chart_name in att_set and not shown_att_header:
+            st.markdown("## ⚔️ Attacking Set Piece Charts")
+            shown_att_header = True
+        if chart_name in def_set and not shown_def_header:
+            st.markdown("## 🛡️ Defensive Set Piece Charts")
+            shown_def_header = True
+
+        req = CHART_REQUIREMENTS.get(chart_name, [])
         missing = ensure_columns(df, req)
 
         st.markdown('<div class="panel-card">', unsafe_allow_html=True)
         st.markdown(f'<div class="panel-title">{chart_name}</div>', unsafe_allow_html=True)
-        st.markdown('<div class="panel-note">Requirements: ' + ", ".join(req) + '</div>', unsafe_allow_html=True)
+        if req:
+            st.markdown('<div class="panel-note">Requirements: ' + ", ".join(req) + '</div>', unsafe_allow_html=True)
 
         if missing:
             st.warning("Missing columns: " + ", ".join(missing))
@@ -364,7 +452,7 @@ with right_col:
     if figures:
         pdf_bytes = save_report_pdf(figures)
         st.download_button(
-            "⬇️ Download Set Piece Report PDF",
+            "⬇️ Download Full Set Piece Report PDF",
             data=pdf_bytes,
             file_name="set_piece_report.pdf",
             mime="application/pdf",
