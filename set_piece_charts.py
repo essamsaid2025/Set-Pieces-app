@@ -95,6 +95,10 @@ CHART_REQUIREMENTS: Dict[str, List[str]] = {
     "Set Piece Landing Heatmap":               ["x2", "y2"],
     "Taker Stats Table":                       ["taker"],
     "First Contact Location Map":              ["x2", "y2"],
+    "First Contact Players by Shirt Number":   ["first_contact_player"],
+    "Players Who Made First Contact":          ["first_contact_player"],
+    "Players That Lost First Contact":         ["lost_first_contact_player"],
+    "Box Marking Scheme":                      ["man_marking_in_box", "zonal_marking_in_box"],
     # ── NEW DEFENSIVE CHARTS ─────────────────────────────────────────────────
     "Defensive Shape Map":                     ["x2", "y2"],
     "Defender vs Attacker Zone Matchup":       ["x2", "y2"],
@@ -223,8 +227,12 @@ def chart_title(ax, t, s):
 def style_legend(leg, s):
     if not leg: return
     f = leg.get_frame()
-    if f: f.set_facecolor(s["panel"]); f.set_edgecolor(s["lines"]); f.set_alpha(0.95)
-    for t in leg.get_texts(): t.set_color(s["text"])
+    if f:
+        f.set_facecolor(s.get("legend_bg", s["panel"]))
+        f.set_edgecolor(s.get("legend_border", s["lines"]))
+        f.set_alpha(0.95)
+    for t in leg.get_texts():
+        t.set_color(s.get("legend_text", s["text"]))
 
 def fig_to_png_bytes(fig, dpi=260):
     buf = io.BytesIO()
@@ -1960,6 +1968,132 @@ def chart_second_ball_recovery_map(df, theme_name, flip_y=False, style_overrides
     return fig
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NEW CONTACT / MARKING CHARTS
+# ─────────────────────────────────────────────────────────────────────────────
+def _shirt_counts(series):
+    s = series.dropna().astype(str).str.strip()
+    s = s[~s.isin(["", "nan", "none"])]
+    return s.value_counts().sort_values(ascending=False)
+
+def chart_first_contact_players_by_shirt(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides)
+    dff = df.copy()
+
+    if "play_type" in dff.columns:
+        play = dff["play_type"].astype(str).str.lower().str.strip()
+        off = dff[play.eq("attack")].copy()
+        deff = dff[play.eq("defence")].copy()
+    else:
+        off = dff.copy()
+        deff = dff.iloc[0:0].copy()
+
+    off_counts = _shirt_counts(off.get("first_contact_player", pd.Series(dtype=object)))
+    def_counts = _shirt_counts(deff.get("first_contact_player", pd.Series(dtype=object)))
+
+    labels = sorted(set(off_counts.index.tolist()) | set(def_counts.index.tolist()), key=lambda x: (len(str(x)), str(x)))
+    off_vals = [int(off_counts.get(lbl, 0)) for lbl in labels]
+    def_vals = [int(def_counts.get(lbl, 0)) for lbl in labels]
+
+    fig, ax = _base_fig(s, (10, 5.4))
+    x = np.arange(len(labels))
+    w = 0.38
+    bcm = s.get("bar_colors", {})
+    bars1 = ax.bar(x - w/2, off_vals, w, color=bcm.get("default", s["accent"]),
+                   edgecolor=s["lines"], linewidth=0.8, label="Offensive")
+    bars2 = ax.bar(x + w/2, def_vals, w, color=bcm.get("danger", s["danger"]),
+                   edgecolor=s["lines"], linewidth=0.8, label="Defensive")
+
+    for bars in [bars1, bars2]:
+        for b in bars:
+            h = b.get_height()
+            if h > 0:
+                ax.text(b.get_x() + b.get_width()/2, h + 0.05, f"{int(h)}",
+                        ha="center", va="bottom", fontsize=max(s["tick_size"]-1, 7), color=s["text"])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels if labels else ["No data"])
+    ax.set_ylabel("First contacts")
+    themed_bar(ax, s)
+    if s.get("show_legend", True):
+        leg = ax.legend(frameon=True)
+        style_legend(leg, s)
+    chart_title(ax, "First Contact Players by Shirt Number", s)
+    if s["tight_layout"]: fig.tight_layout()
+    return fig
+
+def chart_players_made_first_contact(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides)
+    counts = _shirt_counts(df.get("first_contact_player", pd.Series(dtype=object))).head(15)
+
+    fig, ax = _base_fig(s, (8.6, 5.2))
+    bc = s.get("bar_colors", {}).get("default", s["accent"])
+    ax.barh(counts.index[::-1].astype(str), counts.values[::-1], color=bc,
+            edgecolor=s["lines"], linewidth=0.8)
+    for yi, val in enumerate(counts.values[::-1]):
+        ax.text(val + 0.05, yi, str(int(val)), va="center", ha="left",
+                fontsize=max(s["tick_size"]-1, 7), color=s["text"])
+    ax.set_xlabel("Count")
+    themed_bar(ax, s)
+    chart_title(ax, "Players Who Made First Contact", s)
+    if s["tight_layout"]: fig.tight_layout()
+    return fig
+
+def chart_players_lost_first_contact(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides)
+    series = df.get("lost_first_contact_player", pd.Series(dtype=object))
+    counts = _shirt_counts(series).head(15)
+
+    fig, ax = _base_fig(s, (8.8, 5.2))
+    bc = s.get("bar_colors", {}).get("danger", s["danger"])
+    ax.barh(counts.index[::-1].astype(str), counts.values[::-1], color=bc,
+            edgecolor=s["lines"], linewidth=0.8)
+    for yi, val in enumerate(counts.values[::-1]):
+        ax.text(val + 0.05, yi, str(int(val)), va="center", ha="left",
+                fontsize=max(s["tick_size"]-1, 7), color=s["text"])
+    ax.set_xlabel("Count")
+    themed_bar(ax, s)
+    chart_title(ax, "Players That Lost First Contact", s)
+    if len(counts) == 0:
+        ax.text(0.5, 0.5, "Add 'lost_first_contact_player' column to the CSV",
+                ha="center", va="center", transform=ax.transAxes,
+                fontsize=s["label_size"], color=s["muted"])
+    if s["tight_layout"]: fig.tight_layout()
+    return fig
+
+def chart_box_marking_scheme(df, theme_name, flip_y=False, style_overrides=None):
+    s = resolve_style(theme_name, style_overrides)
+    fig, ax = _base_fig(s, (8.6, 5.2))
+    man = pd.to_numeric(df.get("man_marking_in_box", pd.Series(dtype=float)), errors="coerce")
+    zonal = pd.to_numeric(df.get("zonal_marking_in_box", pd.Series(dtype=float)), errors="coerce")
+
+    vals = [float(man.mean()) if man.notna().any() else 0.0,
+            float(zonal.mean()) if zonal.notna().any() else 0.0]
+    labels = ["Man Marking", "Zonal"]
+    colors = [s.get("bar_colors", {}).get("danger", s["danger"]),
+              s.get("bar_colors", {}).get("success", s["success"])]
+
+    bars = ax.bar(labels, vals, color=colors, edgecolor=s["lines"], linewidth=0.8)
+    for bar, val in zip(bars, vals):
+        ax.text(bar.get_x() + bar.get_width()/2, val + 0.05, f"{val:.1f}",
+                ha="center", va="bottom", fontsize=max(s["tick_size"]-1, 7), color=s["text"])
+
+    total = sum(vals)
+    if total > 0:
+        ax.text(0.98, 0.95,
+                f"Man: {vals[0]/total*100:.0f}%  |  Zonal: {vals[1]/total*100:.0f}%",
+                ha="right", va="top", transform=ax.transAxes,
+                fontsize=max(s["tick_size"]-1, 7), color=s["muted"],
+                bbox=dict(boxstyle="round,pad=0.25", facecolor=s["bg"], edgecolor=s["lines"], alpha=0.7))
+
+    ax.set_ylabel("Avg players inside box")
+    themed_bar(ax, s)
+    chart_title(ax, "Box Marking Scheme", s)
+    if s["tight_layout"]: fig.tight_layout()
+    return fig
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # REGISTRY
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1992,6 +2126,10 @@ CHART_BUILDERS = {
     "Set Piece Landing Heatmap":               chart_set_piece_landing_heatmap,
     "Taker Stats Table":                       chart_taker_stats_table,
     "First Contact Location Map":              chart_first_contact_map,
+    "First Contact Players by Shirt Number":   chart_first_contact_players_by_shirt,
+    "Players Who Made First Contact":          chart_players_made_first_contact,
+    "Players That Lost First Contact":         chart_players_lost_first_contact,
+    "Box Marking Scheme":                      chart_box_marking_scheme,
     # ── DEFENSIVE ────────────────────────────────────────────────────────────
     "Defensive Shape Map":                     chart_defensive_shape_map,
     "Defender vs Attacker Zone Matchup":       chart_defender_attacker_matchup,
