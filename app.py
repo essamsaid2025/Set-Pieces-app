@@ -75,6 +75,9 @@ with st.sidebar:
         success = st.color_picker("Success", base_theme["success"])
         warning = st.color_picker("Warning", base_theme["warning"])
         danger = st.color_picker("Danger", base_theme["danger"])
+        legend_bg = st.color_picker("Legend background", base_theme.get("legend_bg", base_theme["panel"]))
+        legend_border = st.color_picker("Legend border", base_theme.get("legend_border", base_theme["lines"]))
+        legend_text = st.color_picker("Legend text", base_theme.get("legend_text", base_theme["text"]))
 
     with st.expander("Typography", expanded=False):
         title_size = st.slider("Title size", 10, 28, 16)
@@ -159,6 +162,10 @@ with st.sidebar:
         "Avg Players Per Zone - Left Corner",
         "Avg Players Per Zone - Right Corner",
         "First Contact Location Map",
+        "First Contact Players by Shirt Number",
+        "Players Who Made First Contact",
+        "Players That Lost First Contact",
+        "Box Marking Scheme",
         "Set Piece Landing Heatmap",
         "Taker Stats Table",
     ]
@@ -215,6 +222,9 @@ style_overrides = {
     "success": success,
     "warning": warning,
     "danger": danger,
+    "legend_bg": legend_bg,
+    "legend_border": legend_border,
+    "legend_text": legend_text,
     "font_family": font_family,
     "title_size": title_size,
     "label_size": label_size,
@@ -297,6 +307,9 @@ with left_col:
         <b>outcome</b> — Successful / Unsuccessful<br>
         <b>defenders_near_post</b> — integer count<br>
         <b>defenders_far_post</b> — integer count<br>
+        <b>man_marking_in_box</b> — number of man-marking defenders in box<br>
+        <b>zonal_marking_in_box</b> — number of zonal defenders in box<br>
+        <b>lost_first_contact_player</b> — shirt number of player who lost first contact<br>
         <b>opponent</b> — match label for trend chart<br><br>
         Charts degrade gracefully when columns are missing.
         </div>
