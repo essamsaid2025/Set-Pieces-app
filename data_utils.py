@@ -7,16 +7,17 @@ import pandas as pd
 
 TEXT_COLS = [
     "match_id", "team", "opponent", "date", "competition", "set_piece_type",
-    "event", "side", "delivery_type", "taker", "phase", "target_zone",
+    "event", "side", "delivery_type", "taker", "phase", "play_type", "target_zone",
     "outcome", "result", "target_player", "first_contact_player",
-    "shot_player", "routine_type",
+    "lost_first_contact_player", "shot_player", "routine_type",
 ]
 
 NUMERIC_COLS = [
     "sequence_id", "x", "y", "x2", "y2", "x3", "y3",
     "first_contact_win", "second_ball_win",
     "players_near_post", "players_far_post", "players_6yard", "players_penalty",
-    "defenders_near_post", "defenders_far_post", "xg",
+    "defenders_near_post", "defenders_far_post",
+    "man_marking_in_box", "zonal_marking_in_box", "xg",
 ]
 
 # Bool columns that may contain yes/no strings
@@ -42,12 +43,16 @@ COLUMN_ALIASES: Dict[str, List[str]] = {
     "side": ["side","flank","wing","left_right","delivery_side"],
     "delivery_type": ["delivery_type","delivery type","delivery","cross_type","service_type"],
     "taker": ["taker","kicker","taken_by","delivery_player","server"],
+
     "phase": ["phase","set_piece_phase","play_phase","event_phase"],
+    "play_type": ["play_type","type","attack_defence","attack_defense","phase_type","attack_or_defence","attack_or_defense"],
+
     "target_zone": ["target_zone","target zone","zone","delivery_zone","end_zone","landing_zone"],
     "outcome": ["outcome","success","event_outcome","status"],
     "result": ["result","final_result","shot_result","play_result"],
     "target_player": ["target_player","target player","receiver","intended_target"],
     "first_contact_player": ["first_contact_player","first contact player","first_touch_player","contact_player"],
+    "lost_first_contact_player": ["lost_first_contact_player","lost first contact player","losing_first_contact_player","first_contact_loser","duel_loser_player","opponent_first_contact_player"],
     "shot_player": ["shot_player","shot player","shooter","finisher"],
     "routine_type": ["routine_type","routine type","routine","pattern","play_pattern"],
     "x": ["x","start_x","start x","from_x","origin_x","x1","x 1","startx"],
@@ -67,6 +72,8 @@ COLUMN_ALIASES: Dict[str, List[str]] = {
                            "players_6yard","attackers_6yard"],
     "defenders_near_post": ["defenders_near_post","near_post_defenders","def_near_post"],
     "defenders_far_post": ["defenders_far_post","far_post_defenders","def_far_post"],
+    "man_marking_in_box": ["man_marking_in_box","man marking in box","man_marking_players","man marking players","man_markers_in_box"],
+    "zonal_marking_in_box": ["zonal_marking_in_box","zonal marking in box","zonal_marking_players","zonal marking players","zone_markers_in_box"],
     "xg": ["xg","expected_goals","exp_goals","shot_xg"],
 }
 
@@ -192,6 +199,11 @@ def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
     out = _to_num(out, NUMERIC_COLS)
     if "phase" in out.columns:
         out["phase"] = out["phase"].replace({"first contact":"first_contact","second ball":"second_ball"})
+    if "play_type" in out.columns:
+        out["play_type"] = out["play_type"].replace({
+            "attack":"attack","attacking":"attack","offensive":"attack",
+            "defence":"defence","defense":"defence","defending":"defence","defensive":"defence",
+        })
     if "delivery_type" in out.columns:
         out["delivery_type"] = out["delivery_type"].replace({
             "in swing":"inswing","in-swing":"inswing","out swing":"outswing","out-swing":"outswing",
