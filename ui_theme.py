@@ -19,6 +19,9 @@ THEMES = {
         "danger": "#FF4D4D",
         "warning": "#FFD400",
         "success": "#00FF6A",
+        "legend_bg": "#111827",
+        "legend_border": "#2A3240",
+        "legend_text": "#FFFFFF",
     },
     "Opta Dark": {
         "bg": "#0E1117",
@@ -36,6 +39,9 @@ THEMES = {
         "danger": "#FF5A5F",
         "warning": "#FACC15",
         "success": "#22C55E",
+        "legend_bg": "#141A22",
+        "legend_border": "#2A3240",
+        "legend_text": "#FFFFFF",
     },
     "Sofa Light": {
         "bg": "#F7F9FC",
@@ -53,6 +59,9 @@ THEMES = {
         "danger": "#DC2626",
         "warning": "#D97706",
         "success": "#16A34A",
+        "legend_bg": "#FFFFFF",
+        "legend_border": "#DDE3EA",
+        "legend_text": "#111111",
     },
     "Black Stripe": {
         "bg": "#000000",
@@ -70,6 +79,29 @@ THEMES = {
         "danger": "#FF4D4D",
         "warning": "#FFD400",
         "success": "#00FF6A",
+        "legend_bg": "#000000",
+        "legend_border": "#2A2A2A",
+        "legend_text": "#FFFFFF",
+    },
+    "Opta Analyst Light": {
+        "bg": "#ECECEC",
+        "panel": "#F5F5F5",
+        "panel_2": "#E9E9E9",
+        "pitch": "#ECECEC",
+        "pitch_stripe": None,
+        "text": "#201C2B",
+        "muted": "#7A7584",
+        "lines": "#A7A7A7",
+        "goal": "#8F8F8F",
+        "pitch_lines": "#9F9F9F",
+        "accent": "#6D28D9",
+        "accent_2": "#8B5CF6",
+        "danger": "#D64045",
+        "warning": "#B0B0B0",
+        "success": "#22A06B",
+        "legend_bg": "#F5F5F5",
+        "legend_border": "#B8B8B8",
+        "legend_text": "#201C2B",
     },
 }
 
@@ -108,7 +140,7 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
     base = get_theme(theme_name)
     controls = controls or {}
 
-    return {
+    style = {
         "theme_name": theme_name,
         "bg": controls.get("bg", base["bg"]),
         "panel": controls.get("panel", base["panel"]),
@@ -125,6 +157,9 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         "danger": controls.get("danger", base["danger"]),
         "warning": controls.get("warning", base["warning"]),
         "success": controls.get("success", base["success"]),
+        "legend_bg": controls.get("legend_bg", base.get("legend_bg", base["panel"])),
+        "legend_border": controls.get("legend_border", base.get("legend_border", base["lines"])),
+        "legend_text": controls.get("legend_text", base.get("legend_text", base["text"])),
         "font_family": controls.get("font_family", "DejaVu Sans"),
         "title_size": controls.get("title_size", 16),
         "label_size": controls.get("label_size", 11),
@@ -158,6 +193,7 @@ def build_chart_style(theme_name: str, controls: Optional[Dict] = None) -> Dict:
         "shirt_sleeve_color": controls.get("shirt_sleeve_color", base["panel"]),
         "shirt_number_color": controls.get("shirt_number_color", base["bg"]),
     }
+    return style
 
 
 def inject_styles():
