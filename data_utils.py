@@ -7,20 +7,33 @@ import pandas as pd
 
 TEXT_COLS = [
     "match_id", "team", "opponent", "date", "competition", "set_piece_type",
-    "event", "side", "delivery_type", "taker", "phase", "play_type", "target_zone",
+    "analysis_phase", "event", "side", "delivery_type", "taker", "phase", "target_zone",
     "outcome", "result", "target_player", "first_contact_player",
-    "lost_first_contact_player", "shot_player", "routine_type",
+    "shot_player", "routine_type", "lost_first_contact_player",
 ]
 
 NUMERIC_COLS = [
-    "sequence_id", "x", "y", "x2", "y2", "x3", "y3",
+    "sequence_id",
+    # legacy coords
+    "x", "y", "x2", "y2", "x3", "y3",
+    # explicit event coords
+    "delivery_start_x", "delivery_start_y",
+    "delivery_end_x", "delivery_end_y",
+    "first_contact_x", "first_contact_y",
+    "second_ball_x", "second_ball_y",
+    "clearance_x", "clearance_y",
+    "shot_x", "shot_y",
+    # outcomes / structure
     "first_contact_win", "second_ball_win",
     "players_near_post", "players_far_post", "players_6yard", "players_penalty",
+    "players_small_area", "players_penalty_area",
+    "attack_players_near_post", "attack_players_far_post",
+    "attack_players_small_area", "attack_players_penalty_area",
     "defenders_near_post", "defenders_far_post",
-    "man_marking_in_box", "zonal_marking_in_box", "xg",
+    "defenders_small_area", "defenders_penalty_area",
+    "man_marking_in_box", "zonal_in_box", "xg",
 ]
 
-# Bool columns that may contain yes/no strings
 _BOOL_COLS = ["first_contact_win", "second_ball_win"]
 
 
@@ -38,42 +51,58 @@ COLUMN_ALIASES: Dict[str, List[str]] = {
     "date": ["date","match_date","match date","game_date","fixture_date"],
     "competition": ["competition","comp","league","tournament"],
     "sequence_id": ["sequence_id","sequence id","seq_id","routine_id","pattern_id","play_id"],
-    "set_piece_type": ["set_piece_type","set piece type","setpiece","set piece","type","event_type","restart_type"],
+    "set_piece_type": ["set_piece_type","set piece type","setpiece","set piece","event_type","restart_type"],
+    "analysis_phase": ["analysis_phase", "analysis phase", "phase_type", "attack_defence", "attack/defence", "type"],
     "event": ["event","action","event_name","action_type"],
     "side": ["side","flank","wing","left_right","delivery_side"],
     "delivery_type": ["delivery_type","delivery type","delivery","cross_type","service_type"],
     "taker": ["taker","kicker","taken_by","delivery_player","server"],
-
     "phase": ["phase","set_piece_phase","play_phase","event_phase"],
-    "play_type": ["play_type","type","attack_defence","attack_defense","phase_type","attack_or_defence","attack_or_defense"],
-
     "target_zone": ["target_zone","target zone","zone","delivery_zone","end_zone","landing_zone"],
     "outcome": ["outcome","success","event_outcome","status"],
     "result": ["result","final_result","shot_result","play_result"],
     "target_player": ["target_player","target player","receiver","intended_target"],
     "first_contact_player": ["first_contact_player","first contact player","first_touch_player","contact_player"],
-    "lost_first_contact_player": ["lost_first_contact_player","lost first contact player","losing_first_contact_player","first_contact_loser","duel_loser_player","opponent_first_contact_player"],
+    "lost_first_contact_player": ["lost_first_contact_player", "lost first contact player"],
     "shot_player": ["shot_player","shot player","shooter","finisher"],
     "routine_type": ["routine_type","routine type","routine","pattern","play_pattern"],
+    # legacy / explicit coords
     "x": ["x","start_x","start x","from_x","origin_x","x1","x 1","startx"],
     "y": ["y","start_y","start y","from_y","origin_y","y1","y 1","starty"],
     "x2": ["x2","x 2","x_2","end_x","end x","to_x","target_x","finish_x","destination_x"],
     "y2": ["y2","y 2","y_2","end_y","end y","to_y","target_y","finish_y","destination_y"],
-    "x3": ["x3","x 3","x_3","third_x","shot_x","final_x"],
-    "y3": ["y3","y 3","y_3","third_y","shot_y","final_y"],
+    "x3": ["x3","x 3","x_3","third_x","final_x"],
+    "y3": ["y3","y 3","y_3","third_y","final_y"],
+    "delivery_start_x": ["delivery_start_x", "delivery start x"],
+    "delivery_start_y": ["delivery_start_y", "delivery start y"],
+    "delivery_end_x": ["delivery_end_x", "delivery end x"],
+    "delivery_end_y": ["delivery_end_y", "delivery end y"],
+    "first_contact_x": ["first_contact_x", "first contact x"],
+    "first_contact_y": ["first_contact_y", "first contact y"],
+    "second_ball_x": ["second_ball_x", "second ball x"],
+    "second_ball_y": ["second_ball_y", "second ball y"],
+    "clearance_x": ["clearance_x", "clearance x"],
+    "clearance_y": ["clearance_y", "clearance y"],
+    "shot_x": ["shot_x", "shot x"],
+    "shot_y": ["shot_y", "shot y"],
     "first_contact_win": ["first_contact_win","first contact win","fc_win","first_header_win"],
     "second_ball_win": ["second_ball_win","second ball win","sb_win","won_second_ball"],
     "players_near_post": ["players_near_post","players near post","near_post_players","attackers_near_post"],
     "players_far_post": ["players_far_post","players far post","far_post_players","attackers_far_post"],
     "players_6yard": ["players_6yard","players 6yard","players 6 yard","six_yard_players","attackers_6yard"],
-    "players_penalty": ["players_penalty","penalty_players","players_penalty_area","attackers_penalty",
-                        "players_penalty area","players penalty area"],
-    "players_small_area": ["players_small_area","players small area","players_small area","small_area_players",
-                           "players_6yard","attackers_6yard"],
+    "players_penalty": ["players_penalty","penalty_players","players_penalty_area","attackers_penalty","players_penalty area"],
+    "players_small_area": ["players_small_area","players small area","small_area_players"],
+    "players_penalty_area": ["players_penalty_area","players penalty area"],
+    "attack_players_near_post": ["attack_players_near_post"],
+    "attack_players_far_post": ["attack_players_far_post"],
+    "attack_players_small_area": ["attack_players_small_area"],
+    "attack_players_penalty_area": ["attack_players_penalty_area"],
     "defenders_near_post": ["defenders_near_post","near_post_defenders","def_near_post"],
     "defenders_far_post": ["defenders_far_post","far_post_defenders","def_far_post"],
-    "man_marking_in_box": ["man_marking_in_box","man marking in box","man_marking_players","man marking players","man_markers_in_box"],
-    "zonal_marking_in_box": ["zonal_marking_in_box","zonal marking in box","zonal_marking_players","zonal marking players","zone_markers_in_box"],
+    "defenders_small_area": ["defenders_small_area"],
+    "defenders_penalty_area": ["defenders_penalty_area"],
+    "man_marking_in_box": ["man_marking_in_box", "man marking in box"],
+    "zonal_in_box": ["zonal_in_box", "zonal in box"],
     "xg": ["xg","expected_goals","exp_goals","shot_xg"],
 }
 
@@ -128,7 +157,7 @@ def load_data(uploaded_file) -> pd.DataFrame:
                 continue
         uploaded_file.seek(0)
         return pd.read_csv(uploaded_file)
-    if ext in [".xlsx",".xls"]:
+    if ext in [".xlsx", ".xls"]:
         uploaded_file.seek(0)
         return pd.read_excel(uploaded_file)
     raise ValueError("Unsupported file type. Use CSV or Excel.")
@@ -148,7 +177,6 @@ def _to_num(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
 
 
 def _convert_bool_cols(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
-    """Convert yes/no string columns to 1/0 integers BEFORE _to_num."""
     out = df.copy()
     yes_vals = {"yes","y","true","1","won","win","successful","success"}
     no_vals  = {"no","n","false","0","lost","lose","unsuccessful","failed"}
@@ -156,7 +184,6 @@ def _convert_bool_cols(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
         if c in out.columns:
             s = out[c].astype(str).str.strip().str.lower()
             if s.isin(yes_vals | no_vals | {pd.NA, "nan", "none", ""}).any():
-                # Convert string bools to numeric
                 out[c] = s.map(lambda v: 1 if v in yes_vals else (0 if v in no_vals else pd.NA))
                 out[c] = pd.to_numeric(out[c], errors="coerce")
     return out
@@ -174,7 +201,7 @@ def _first_existing_series(out: pd.DataFrame, candidates: List[str]) -> Optional
 def _resolve_set_piece_type(out: pd.DataFrame) -> pd.DataFrame:
     if "set_piece_type" not in out.columns:
         out["set_piece_type"] = pd.NA
-    fallback_event   = _first_existing_series(out, ["event"])
+    fallback_event = _first_existing_series(out, ["event"])
     fallback_outcome = _first_existing_series(out, ["outcome"])
     if fallback_event is not None:
         out["set_piece_type"] = out["set_piece_type"].fillna(fallback_event)
@@ -189,21 +216,47 @@ def _resolve_set_piece_type(out: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _resolve_analysis_phase(out: pd.DataFrame) -> pd.DataFrame:
+    if "analysis_phase" not in out.columns:
+        out["analysis_phase"] = pd.NA
+    out["analysis_phase"] = out["analysis_phase"].replace({
+        "attacking": "attack",
+        "offence": "attack",
+        "offense": "attack",
+        "defensive": "defence",
+        "defense": "defence",
+    })
+    return out
+
+
+def _sync_explicit_coords_to_legacy(out: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "x": ["delivery_start_x"],
+        "y": ["delivery_start_y"],
+        "x2": ["delivery_end_x", "first_contact_x"],
+        "y2": ["delivery_end_y", "first_contact_y"],
+        "x3": ["shot_x", "second_ball_x", "clearance_x"],
+        "y3": ["shot_y", "second_ball_y", "clearance_y"],
+    }
+    for legacy, candidates in mapping.items():
+        if legacy not in out.columns:
+            out[legacy] = pd.NA
+        for c in candidates:
+            if c in out.columns:
+                out[legacy] = out[legacy].fillna(out[c])
+    return out
+
+
 def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
     out = _canonicalize_columns(df.copy())
     for c in TEXT_COLS:
         if c in out.columns:
             out[c] = _normalize_text_series(out[c])
-    # Convert bool columns (yes/no) BEFORE numeric conversion
+    out = _resolve_analysis_phase(out)
     out = _convert_bool_cols(out, _BOOL_COLS)
     out = _to_num(out, NUMERIC_COLS)
     if "phase" in out.columns:
         out["phase"] = out["phase"].replace({"first contact":"first_contact","second ball":"second_ball"})
-    if "play_type" in out.columns:
-        out["play_type"] = out["play_type"].replace({
-            "attack":"attack","attacking":"attack","offensive":"attack",
-            "defence":"defence","defense":"defence","defending":"defence","defensive":"defence",
-        })
     if "delivery_type" in out.columns:
         out["delivery_type"] = out["delivery_type"].replace({
             "in swing":"inswing","in-swing":"inswing","out swing":"outswing","out-swing":"outswing",
@@ -212,6 +265,7 @@ def normalize_set_piece_df(df: pd.DataFrame) -> pd.DataFrame:
     if "outcome" in out.columns:
         out["outcome"] = out["outcome"].replace({"success":"successful","fail":"unsuccessful","failed":"unsuccessful"})
     out = _resolve_set_piece_type(out)
+    out = _sync_explicit_coords_to_legacy(out)
     return out
 
 
@@ -230,7 +284,11 @@ def apply_flip_y(df: pd.DataFrame, flip_y: bool = False, pitch_width: float = 64
     out = df.copy()
     if not flip_y:
         return out
-    for c in ["y","y2","y3"]:
+    for c in [
+        "y","y2","y3",
+        "delivery_start_y","delivery_end_y","first_contact_y",
+        "second_ball_y","clearance_y","shot_y",
+    ]:
         if c in out.columns:
             out[c] = pd.to_numeric(out[c], errors="coerce")
             out[c] = pitch_width - out[c]
