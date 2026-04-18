@@ -18,110 +18,6 @@ from set_piece_charts import (
     fig_to_png_bytes,
 )
 
-ATTACKING_CHARTS = {
-    "Delivery Start Map",
-    "Delivery Heatmap",
-    "Delivery End Scatter - Left Corner",
-    "Delivery End Scatter - Right Corner",
-    "Delivery Trajectories - Left Corners",
-    "Delivery Trajectories - Right Corners",
-    "Attack Free Kick Trajectories",
-    "Average Delivery Path",
-    "Heat + Trajectories",
-    "Trajectory Clusters",
-    "Delivery Length Distribution",
-    "Delivery Direction Map",
-    "Outcome Distribution",
-    "Target Zone Breakdown",
-    "Zone Delivery Count Map - Left Corner",
-    "Zone Delivery Count Map - Right Corner",
-    "Avg Players Per Zone - Left Corner",
-    "Avg Players Per Zone - Right Corner",
-    "First Contact Win By Zone",
-    "Routine Breakdown",
-    "Shot Map",
-    "Second Ball Map",
-    "Taker Profile",
-    "Structure Zone Averages",
-    "Set Piece Landing Heatmap",
-    "Taker Stats Table",
-    "First Contact Location Map",
-}
-
-DEFENSIVE_CHARTS = {
-    "Defensive Shape Map",
-    "Defender vs Attacker Zone Matchup",
-    "Clearance Outcome Map",
-    "Set Piece Conceded Heatmap",
-    "Defensive Success Rate By Zone",
-    "First Contact Win Rate Trend",
-    "Second Ball Recovery Map",
-    "Defensive Vulnerability Map",
-}
-
-ALT_REQUIREMENTS = {
-    "Delivery Start Map": [["x", "delivery_start_x"], ["y", "delivery_start_y"]],
-    "Delivery Heatmap": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Delivery End Scatter - Left Corner": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Delivery End Scatter - Right Corner": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Delivery Trajectories - Left Corners": [["x", "delivery_start_x"], ["y", "delivery_start_y"], ["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Delivery Trajectories - Right Corners": [["x", "delivery_start_x"], ["y", "delivery_start_y"], ["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Attack Free Kick Trajectories": [["x", "delivery_start_x"], ["y", "delivery_start_y"], ["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Average Delivery Path": [["x", "delivery_start_x"], ["y", "delivery_start_y"], ["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Heat + Trajectories": [["x", "delivery_start_x"], ["y", "delivery_start_y"], ["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Trajectory Clusters": [["x", "delivery_start_x"], ["y", "delivery_start_y"], ["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Delivery Length Distribution": [["x", "delivery_start_x"], ["y", "delivery_start_y"], ["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Delivery Direction Map": [["x", "delivery_start_x"], ["y", "delivery_start_y"], ["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Target Zone Breakdown": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Zone Delivery Count Map - Left Corner": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Zone Delivery Count Map - Right Corner": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "First Contact Win By Zone": [["x2", "first_contact_x", "delivery_end_x"], ["y2", "first_contact_y", "delivery_end_y"]],
-    "Shot Map": [["x", "shot_x"], ["y", "shot_y"]],
-    "Second Ball Map": [["x", "second_ball_x"], ["y", "second_ball_y"]],
-    "Defensive Vulnerability Map": [["x", "delivery_end_x"], ["y", "delivery_end_y"]],
-    "Set Piece Landing Heatmap": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "First Contact Location Map": [["x2", "first_contact_x"], ["y2", "first_contact_y"]],
-    "Defensive Shape Map": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Defender vs Attacker Zone Matchup": [["x2", "delivery_end_x"], ["y2", "delivery_end_y"]],
-    "Clearance Outcome Map": [["x2", "clearance_x"], ["y2", "clearance_y"]],
-    "Set Piece Conceded Heatmap": [["x2", "delivery_end_x", "first_contact_x"], ["y2", "delivery_end_y", "first_contact_y"]],
-    "Defensive Success Rate By Zone": [["x2", "first_contact_x"], ["y2", "first_contact_y"]],
-    "Second Ball Recovery Map": [["x2", "second_ball_x"], ["y2", "second_ball_y"]],
-}
-
-def _derive_analysis_phase(df):
-    out = df.copy()
-    if "analysis_phase" in out.columns and out["analysis_phase"].notna().any():
-        out["analysis_phase"] = out["analysis_phase"].astype(str).str.strip().str.lower()
-        return out
-    candidates = ["type", "phase_type", "analysis", "attack_defence", "attack_defense", "set_piece_type__dup1"]
-    for c in candidates:
-        if c in out.columns and out[c].notna().any():
-            s = out[c].astype(str).str.strip().str.lower()
-            mapped = s.replace({"defense": "defence", "defensive": "defence", "offence": "attack", "offensive": "attack"})
-            mask = mapped.isin(["attack", "defence"])
-            if mask.any():
-                out["analysis_phase"] = mapped.where(mask)
-                return out
-    out["analysis_phase"] = "attack"
-    return out
-
-def _chart_missing_columns(df, chart_name):
-    req_groups = ALT_REQUIREMENTS.get(chart_name, [[c] for c in CHART_REQUIREMENTS.get(chart_name, [])])
-    missing = []
-    for group in req_groups:
-        if not any(col in df.columns for col in group):
-            missing.append(" / ".join(group))
-    return missing
-
-def _phase_filter(df, phase_name):
-    if "analysis_phase" not in df.columns:
-        return df
-    phase_name = phase_name.lower()
-    mask = df["analysis_phase"].astype(str).str.lower() == phase_name
-    return df[mask].copy() if mask.any() else df.iloc[0:0].copy()
-
-
 st.set_page_config(
     page_title="Set Piece Analysis App",
     layout="wide",
@@ -179,6 +75,9 @@ with st.sidebar:
         success = st.color_picker("Success", base_theme["success"])
         warning = st.color_picker("Warning", base_theme["warning"])
         danger = st.color_picker("Danger", base_theme["danger"])
+        legend_bg = st.color_picker("Legend background", base_theme.get("legend_bg", base_theme["panel"]))
+        legend_border = st.color_picker("Legend border", base_theme.get("legend_border", base_theme["lines"]))
+        legend_text = st.color_picker("Legend text", base_theme.get("legend_text", base_theme["text"]))
 
     with st.expander("Typography", expanded=False):
         title_size = st.slider("Title size", 10, 28, 16)
@@ -263,6 +162,10 @@ with st.sidebar:
         "Avg Players Per Zone - Left Corner",
         "Avg Players Per Zone - Right Corner",
         "First Contact Location Map",
+        "First Contact Players by Shirt Number",
+        "Players Who Made First Contact",
+        "Players That Lost First Contact",
+        "Box Marking Scheme",
         "Set Piece Landing Heatmap",
         "Taker Stats Table",
     ]
@@ -319,6 +222,9 @@ style_overrides = {
     "success": success,
     "warning": warning,
     "danger": danger,
+    "legend_bg": legend_bg,
+    "legend_border": legend_border,
+    "legend_text": legend_text,
     "font_family": font_family,
     "title_size": title_size,
     "label_size": label_size,
@@ -401,6 +307,9 @@ with left_col:
         <b>outcome</b> — Successful / Unsuccessful<br>
         <b>defenders_near_post</b> — integer count<br>
         <b>defenders_far_post</b> — integer count<br>
+        <b>man_marking_in_box</b> — number of man-marking defenders in box<br>
+        <b>zonal_marking_in_box</b> — number of zonal defenders in box<br>
+        <b>lost_first_contact_player</b> — shirt number of player who lost first contact<br>
         <b>opponent</b> — match label for trend chart<br><br>
         Charts degrade gracefully when columns are missing.
         </div>
@@ -423,7 +332,6 @@ with right_col:
 
     df = load_data(uploaded)
     df = normalize_set_piece_df(df)
-    df = _derive_analysis_phase(df)
     df = apply_flip_y(df, flip_y=flip_y)
 
     k1, k2, k3 = st.columns(3)
@@ -434,9 +342,6 @@ with right_col:
     with k3:
         seq_n = int(df["sequence_id"].nunique()) if "sequence_id" in df.columns else 0
         render_kpi_card("Sequences", seq_n)
-
-    if "analysis_phase" in df.columns:
-        st.caption("Analysis phase counts: " + ", ".join([f"{k}={v}" for k, v in df["analysis_phase"].value_counts(dropna=False).to_dict().items()]))
 
     with st.expander("Preview data (first 25 rows)", expanded=False):
         st.write("Columns:", list(df.columns))
@@ -520,26 +425,12 @@ with right_col:
             shown_def_header = True
 
         req = CHART_REQUIREMENTS.get(chart_name, [])
-        chart_df = df.copy()
-        if chart_name in ATTACKING_CHARTS:
-            chart_df = _phase_filter(chart_df, "attack")
-        elif chart_name in DEFENSIVE_CHARTS:
-            chart_df = _phase_filter(chart_df, "defence")
-        missing = _chart_missing_columns(chart_df, chart_name)
+        missing = ensure_columns(df, req)
 
         st.markdown('<div class="panel-card">', unsafe_allow_html=True)
         st.markdown(f'<div class="panel-title">{chart_name}</div>', unsafe_allow_html=True)
         if req:
-            st.markdown('<div class="panel-note">Legacy requirements: ' + ", ".join(req) + '</div>', unsafe_allow_html=True)
-        if chart_name in ATTACKING_CHARTS:
-            st.markdown('<div class="panel-note">Phase filter: attack</div>', unsafe_allow_html=True)
-        elif chart_name in DEFENSIVE_CHARTS:
-            st.markdown('<div class="panel-note">Phase filter: defence</div>', unsafe_allow_html=True)
-
-        if len(chart_df) == 0:
-            st.warning("No rows found for this phase after filtering.")
-            st.markdown("</div>", unsafe_allow_html=True)
-            continue
+            st.markdown('<div class="panel-note">Requirements: ' + ", ".join(req) + '</div>', unsafe_allow_html=True)
 
         if missing:
             st.warning("Missing columns: " + ", ".join(missing))
@@ -548,7 +439,7 @@ with right_col:
 
         try:
             fig = CHART_BUILDERS[chart_name](
-                chart_df.copy(),
+                df.copy(),
                 theme_name=theme_name,
                 flip_y=False,
                 style_overrides=chart_style,
