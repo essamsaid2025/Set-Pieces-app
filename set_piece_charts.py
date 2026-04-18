@@ -67,47 +67,92 @@ ZONE_CKEYS = ["accent", "accent_2", "warning", "success", "accent_2", "accent", 
 # CHART REQUIREMENTS
 # ─────────────────────────────────────────────────────────────────────────────
 CHART_REQUIREMENTS: Dict[str, List[str]] = {
-    "Delivery Start Map":                      ["x", "y"],
-    "Delivery Heatmap":                        ["x2", "y2"],
-    "Delivery End Scatter - Left Corner":      ["x2", "y2"],
-    "Delivery End Scatter - Right Corner":     ["x2", "y2"],
-    "Delivery Trajectories - Left Corners":    ["x", "y", "x2", "y2"],
-    "Delivery Trajectories - Right Corners":   ["x", "y", "x2", "y2"],
-    "Attack Free Kick Trajectories":           ["x", "y", "x2", "y2"],
-    "Average Delivery Path":                   ["x", "y", "x2", "y2"],
-    "Heat + Trajectories":                     ["x", "y", "x2", "y2"],
-    "Trajectory Clusters":                     ["x", "y", "x2", "y2"],
-    "Delivery Length Distribution":            ["x", "y", "x2", "y2"],
-    "Delivery Direction Map":                  ["x", "y", "x2", "y2"],
+    "Delivery Start Map":                      ["delivery_start_x / x", "delivery_start_y / y"],
+    "Delivery Heatmap":                        ["delivery_end_x / x2", "delivery_end_y / y2"],
+    "Delivery End Scatter - Left Corner":      ["delivery_end_x / x2", "delivery_end_y / y2"],
+    "Delivery End Scatter - Right Corner":     ["delivery_end_x / x2", "delivery_end_y / y2"],
+    "Delivery Trajectories - Left Corners":    ["delivery_start_x / x", "delivery_start_y / y", "delivery_end_x / x2", "delivery_end_y / y2"],
+    "Delivery Trajectories - Right Corners":   ["delivery_start_x / x", "delivery_start_y / y", "delivery_end_x / x2", "delivery_end_y / y2"],
+    "Attack Free Kick Trajectories":           ["delivery_start_x / x", "delivery_start_y / y", "delivery_end_x / x2", "delivery_end_y / y2"],
+    "Average Delivery Path":                   ["delivery_start_x / x", "delivery_start_y / y", "delivery_end_x / x2", "delivery_end_y / y2"],
+    "Heat + Trajectories":                     ["delivery_start_x / x", "delivery_start_y / y", "delivery_end_x / x2", "delivery_end_y / y2"],
+    "Trajectory Clusters":                     ["delivery_start_x / x", "delivery_start_y / y", "delivery_end_x / x2", "delivery_end_y / y2"],
+    "Delivery Length Distribution":            ["delivery_start_x / x", "delivery_start_y / y", "delivery_end_x / x2", "delivery_end_y / y2"],
+    "Delivery Direction Map":                  ["delivery_start_x / x", "delivery_start_y / y", "delivery_end_x / x2", "delivery_end_y / y2"],
     "Outcome Distribution":                    ["set_piece_type"],
-    "Target Zone Breakdown":                   ["x2", "y2"],
+    "Target Zone Breakdown":                   ["delivery_end_x / x2", "delivery_end_y / y2"],
     "Zone Delivery Count Map - Left Corner":   ["x2", "y2"],
     "Zone Delivery Count Map - Right Corner":  ["x2", "y2"],
     "Avg Players Per Zone - Left Corner":      ["players_near_post"],
     "Avg Players Per Zone - Right Corner":     ["players_near_post"],
-    "First Contact Win By Zone":               ["x2", "y2"],
+    "First Contact Win By Zone":               ["first_contact_x / x2", "first_contact_y / y2"],
     "Routine Breakdown":                       ["set_piece_type"],
-    "Shot Map":                                ["x", "y"],
-    "Second Ball Map":                         ["x", "y"],
-    "Defensive Vulnerability Map":             ["x", "y"],
+    "Shot Map":                                ["shot_x / x", "shot_y / y"],
+    "Second Ball Map":                         ["second_ball_x / x", "second_ball_y / y"],
+    "Defensive Vulnerability Map":             ["delivery_end_x / x", "delivery_end_y / y"],
     "Taker Profile":                           ["set_piece_type"],
     "Structure Zone Averages":                 [],
-    "Set Piece Landing Heatmap":               ["x2", "y2"],
+    "Set Piece Landing Heatmap":               ["delivery_end_x / x2", "delivery_end_y / y2"],
     "Taker Stats Table":                       ["taker"],
-    "First Contact Location Map":              ["x2", "y2"],
-    "First Contact Players by Shirt Number":   ["first_contact_player"],
-    "Players Who Made First Contact":          ["first_contact_player"],
-    "Players That Lost First Contact":         ["lost_first_contact_player"],
-    "Box Marking Scheme":                      ["man_marking_in_box", "zonal_marking_in_box"],
+    "First Contact Location Map":              ["first_contact_x / x2", "first_contact_y / y2"],
     # ── NEW DEFENSIVE CHARTS ─────────────────────────────────────────────────
-    "Defensive Shape Map":                     ["x2", "y2"],
-    "Defender vs Attacker Zone Matchup":       ["x2", "y2"],
-    "Clearance Outcome Map":                   ["x2", "y2"],
-    "Set Piece Conceded Heatmap":              ["x2", "y2"],
-    "Defensive Success Rate By Zone":          ["x2", "y2"],
+    "Defensive Shape Map":                     ["delivery_end_x / x2", "delivery_end_y / y2"],
+    "Defender vs Attacker Zone Matchup":       ["delivery_end_x / x2", "delivery_end_y / y2"],
+    "Clearance Outcome Map":                   ["clearance_x / x2", "clearance_y / y2"],
+    "Set Piece Conceded Heatmap":              ["delivery_end_x / x2", "delivery_end_y / y2"],
+    "Defensive Success Rate By Zone":          ["first_contact_x / x2", "first_contact_y / y2"],
     "First Contact Win Rate Trend":            [],
-    "Second Ball Recovery Map":                ["x2", "y2"],
+    "Second Ball Recovery Map":                ["second_ball_x / x2", "second_ball_y / y2"],
 }
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COORD ROLE HELPERS (prevents overlap between delivery / first-contact /
+# second-ball / clearance / shot coordinates)
+# ─────────────────────────────────────────────────────────────────────────────
+def _first_existing_col(df, cols):
+    for c in cols:
+        if c in df.columns and df[c].notna().any():
+            return c
+    return None
+
+def _copy_if_exists(out, src_cols, dst_col):
+    src = _first_existing_col(out, src_cols)
+    if src is not None:
+        out[dst_col] = out[src]
+    return out
+
+def _role_df(df, role="delivery"):
+    out = df.copy()
+
+    if role == "delivery":
+        out = _copy_if_exists(out, ["delivery_start_x", "x"], "x")
+        out = _copy_if_exists(out, ["delivery_start_y", "y"], "y")
+        out = _copy_if_exists(out, ["delivery_end_x", "x2"], "x2")
+        out = _copy_if_exists(out, ["delivery_end_y", "y2"], "y2")
+    elif role == "first_contact":
+        out = _copy_if_exists(out, ["first_contact_x", "x2", "delivery_end_x"], "x2")
+        out = _copy_if_exists(out, ["first_contact_y", "y2", "delivery_end_y"], "y2")
+        out = _copy_if_exists(out, ["delivery_start_x", "x"], "x")
+        out = _copy_if_exists(out, ["delivery_start_y", "y"], "y")
+    elif role == "second_ball_map":
+        out = _copy_if_exists(out, ["second_ball_x", "x"], "x")
+        out = _copy_if_exists(out, ["second_ball_y", "y"], "y")
+    elif role == "second_ball_zone":
+        out = _copy_if_exists(out, ["second_ball_x", "x2"], "x2")
+        out = _copy_if_exists(out, ["second_ball_y", "y2"], "y2")
+    elif role == "clearance":
+        out = _copy_if_exists(out, ["clearance_x", "x2"], "x2")
+        out = _copy_if_exists(out, ["clearance_y", "y2"], "y2")
+    elif role == "shot":
+        out = _copy_if_exists(out, ["shot_x", "x"], "x")
+        out = _copy_if_exists(out, ["shot_y", "y"], "y")
+    elif role == "delivery_end_only":
+        out = _copy_if_exists(out, ["delivery_end_x", "x2", "first_contact_x"], "x2")
+        out = _copy_if_exists(out, ["delivery_end_y", "y2", "first_contact_y"], "y2")
+    return out
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SIMPLE PITCH
@@ -227,12 +272,8 @@ def chart_title(ax, t, s):
 def style_legend(leg, s):
     if not leg: return
     f = leg.get_frame()
-    if f:
-        f.set_facecolor(s.get("legend_bg", s["panel"]))
-        f.set_edgecolor(s.get("legend_border", s["lines"]))
-        f.set_alpha(0.95)
-    for t in leg.get_texts():
-        t.set_color(s.get("legend_text", s["text"]))
+    if f: f.set_facecolor(s["panel"]); f.set_edgecolor(s["lines"]); f.set_alpha(0.95)
+    for t in leg.get_texts(): t.set_color(s["text"])
 
 def fig_to_png_bytes(fig, dpi=260):
     buf = io.BytesIO()
@@ -441,7 +482,7 @@ def _traj_chart(df, theme_name, flip_y, style_overrides, title, corner_side):
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, coord_role), flip_y)
 
     if "side" in dff.columns:
         mask = dff["side"].astype(str).str.lower() == corner_side
@@ -508,7 +549,7 @@ def chart_attack_freekick_trajectories(df, theme_name, flip_y=False, style_overr
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery"), flip_y)
 
     # ── filter: free kicks only ───────────────────────────────────────────────
     for sp_col in ["set_piece_type", "set_piece", "Type"]:
@@ -612,7 +653,7 @@ def _scatter_chart(df, theme_name, flip_y, style_overrides, corner_side):
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery"), flip_y)
 
     if "side" in dff.columns:
         mask = dff["side"].astype(str).str.lower() == corner_side
@@ -689,7 +730,7 @@ def _zone_count_map(df, theme_name, flip_y, style_overrides, corner_side):
     s     = resolve_style(theme_name, style_overrides)
     vert  = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery"), flip_y)
 
     if "side" in dff.columns:
         mask = dff["side"].astype(str).str.lower() == corner_side
@@ -761,11 +802,11 @@ def chart_zone_count_right(df, theme_name, flip_y=False, style_overrides=None): 
 # ─────────────────────────────────────────────────────────────────────────────
 # PITCH SETUP HELPER
 # ─────────────────────────────────────────────────────────────────────────────
-def _pitch_setup(df, theme_name, flip_y, style_overrides, figsize_h=(8,6), figsize_v=(6,8)):
+def _pitch_setup(df, theme_name, flip_y, style_overrides, figsize_h=(8,6), figsize_v=(6,8), coord_role="delivery"):
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, coord_role), flip_y)
     fig, ax = _base_fig(s, figsize_v if vert else figsize_h)
     pitch.draw(ax=ax)
     _setup_pitch_axes(ax, s, vert)
@@ -777,7 +818,7 @@ def _pitch_setup(df, theme_name, flip_y, style_overrides, figsize_h=(8,6), figsi
 # EXISTING PITCH CHARTS
 # ─────────────────────────────────────────────────────────────────────────────
 def chart_delivery_start_map(df, theme_name, flip_y=False, style_overrides=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides, coord_role="delivery")
     dd = dff.dropna(subset=["x_start_plot","y_start_plot"]).copy()
     px = dd["y_start_plot"].values if vert else dd["x_start_plot"].values
     py = dd["x_start_plot"].values if vert else dd["y_start_plot"].values
@@ -789,7 +830,7 @@ def chart_delivery_start_map(df, theme_name, flip_y=False, style_overrides=None)
     return fig
 
 def chart_delivery_heatmap(df, theme_name, flip_y=False, style_overrides=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides, coord_role="delivery")
     dd = dff.dropna(subset=["x2","y2"]).copy()
     if len(dd):
         px = dd["y2"].values if vert else dd["x2"].values
@@ -808,7 +849,7 @@ def chart_average_delivery_path(df, theme_name, flip_y=False, style_overrides=No
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery"), flip_y)
     fig, ax = _base_fig(s, (6.2,8.2) if vert else (8.2,6.2))
     pitch.draw(ax=ax); _setup_pitch_axes(ax, s, vert)
     if s.get("show_thirds", False): _draw_thirds(ax, s, vert)
@@ -851,7 +892,7 @@ def chart_heat_plus_trajectories(df, theme_name, flip_y=False, style_overrides=N
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery"), flip_y)
     fig, ax = _base_fig(s, (6.4,8.4) if vert else (8.4,6.4))
     pitch.draw(ax=ax); _setup_pitch_axes(ax, s, vert)
     if s.get("show_thirds", False): _draw_thirds(ax, s, vert)
@@ -890,7 +931,7 @@ def chart_trajectory_clusters(df, theme_name, flip_y=False, style_overrides=None
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery"), flip_y)
     fig, ax = _base_fig(s, (6.4,8.4) if vert else (8.4,6.4))
     pitch.draw(ax=ax); _setup_pitch_axes(ax, s, vert)
     if s.get("show_thirds", False): _draw_thirds(ax, s, vert)
@@ -936,7 +977,7 @@ def chart_trajectory_clusters(df, theme_name, flip_y=False, style_overrides=None
     return fig
 
 def chart_shot_map(df, theme_name, flip_y=False, style_overrides=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides, coord_role="shot")
     dd = dff.dropna(subset=["x","y"]).copy()
     sz = s["marker_size"]*1.6
     if "xg" in dd.columns:
@@ -950,7 +991,7 @@ def chart_shot_map(df, theme_name, flip_y=False, style_overrides=None):
     return fig
 
 def chart_second_ball_map(df, theme_name, flip_y=False, style_overrides=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides, coord_role="second_ball_map")
     dd = dff.dropna(subset=["x","y"]).copy()
     dd["sb"] = _get_sbw(dd)
     win = dd[dd["sb"]==1]; lose = dd[dd["sb"]==0]
@@ -974,7 +1015,7 @@ def chart_second_ball_map(df, theme_name, flip_y=False, style_overrides=None):
     return fig
 
 def chart_defensive_vulnerability_map(df, theme_name, flip_y=False, style_overrides=None):
-    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides)
+    s, vert, pitch, dff, fig, ax = _pitch_setup(df, theme_name, flip_y, style_overrides, coord_role="delivery_end_only")
     dd = dff.dropna(subset=["x","y"]).copy()
     if len(dd):
         px=dd["y"].values if vert else dd["x"].values
@@ -989,7 +1030,7 @@ def chart_set_piece_landing_heatmap(df, theme_name, flip_y=False, style_override
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery"), flip_y)
     fig, ax = _base_fig(s, (6.2,8.8) if vert else (10.0,6.8))
     pitch.draw(ax=ax); _setup_pitch_axes(ax, s, vert)
     _draw_thirds(ax, s, vert)
@@ -1010,7 +1051,7 @@ def chart_set_piece_landing_heatmap(df, theme_name, flip_y=False, style_override
 # ── bar charts ──────────────────────────────────────────────────────────────
 def chart_delivery_length_distribution(df, theme_name, flip_y=False, style_overrides=None):
     s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.6,4.8))
-    dff = _prep(df, flip_y); dd = dff.dropna(subset=["x_start_plot","y_start_plot","x2","y2"]).copy()
+    dff = _prep(_role_df(df, "delivery"), flip_y); dd = dff.dropna(subset=["x_start_plot","y_start_plot","x2","y2"]).copy()
     lengths = (((dd["x2"]-dd["x_start_plot"])**2+(dd["y2"]-dd["y_start_plot"])**2)**0.5 if len(dd) else pd.Series(dtype=float))
     bc = s.get("bar_colors",{}).get("default", s["accent"])
     ax.hist(lengths, bins=12, color=bc, edgecolor=s["lines"], linewidth=0.8, alpha=0.92)
@@ -1021,7 +1062,7 @@ def chart_delivery_length_distribution(df, theme_name, flip_y=False, style_overr
 
 def chart_delivery_direction_map(df, theme_name, flip_y=False, style_overrides=None):
     s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.6,4.8))
-    dff = _prep(df, flip_y); dd = dff.dropna(subset=["x_start_plot","y_start_plot","x2","y2"]).copy()
+    dff = _prep(_role_df(df, "delivery"), flip_y); dd = dff.dropna(subset=["x_start_plot","y_start_plot","x2","y2"]).copy()
     if not len(dd): summary = pd.Series(dtype=float)
     else:
         dx=dd["x2"]-dd["x_start_plot"]; dy=dd["y2"]-dd["y_start_plot"]
@@ -1049,7 +1090,7 @@ def chart_outcome_distribution(df, theme_name, flip_y=False, style_overrides=Non
 
 def chart_target_zone_breakdown(df, theme_name, flip_y=False, style_overrides=None):
     s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.4,4.6))
-    dff = _prep(df, flip_y); counts = get_target_zone_series(dff).value_counts()
+    dff = _prep(_role_df(df, "delivery"), flip_y); counts = get_target_zone_series(dff).value_counts()
     bc = s.get("bar_colors",{}).get("default", s["accent"])
     ax.bar(counts.index, counts.values, color=bc, edgecolor=s["lines"], linewidth=0.8)
     themed_bar(ax, s); chart_title(ax, "Target Zone Breakdown", s)
@@ -1059,7 +1100,7 @@ def chart_target_zone_breakdown(df, theme_name, flip_y=False, style_overrides=No
 
 def chart_first_contact_win_by_zone(df, theme_name, flip_y=False, style_overrides=None):
     s = resolve_style(theme_name, style_overrides); fig, ax = _base_fig(s, (7.6,4.8))
-    dff = _prep(df, flip_y); dd = dff.copy()
+    dff = _prep(_role_df(df, "first_contact"), flip_y); dd = dff.copy()
     dd["zone_calc"] = get_target_zone_series(dd); dd["fc_calc"] = _get_fcw(dd)
     summary = dd.groupby("zone_calc",dropna=False)["fc_calc"].mean().sort_values(ascending=False)*100
     bc = s.get("bar_colors",{}).get("default", s["accent"])
@@ -1207,7 +1248,7 @@ def _avg_players_zone_map(df, theme_name, flip_y, style_overrides, corner_side):
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery"), flip_y)
 
     if "side" in dff.columns:
         mask = dff["side"].astype(str).str.lower() == corner_side
@@ -1366,7 +1407,7 @@ def chart_first_contact_map(df, theme_name, flip_y=False, style_overrides=None):
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "first_contact"), flip_y)
 
     figsize = (6, 8.5) if vert else (10, 6.5)
     fig, ax = _base_fig(s, figsize)
@@ -1456,7 +1497,7 @@ def chart_defensive_shape_map(df, theme_name, flip_y=False, style_overrides=None
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery_end_only"), flip_y)
 
     figsize = (6, 7.5) if vert else (9.5, 6.5)
     fig, ax = _base_fig(s, figsize)
@@ -1555,7 +1596,7 @@ def chart_defensive_shape_map(df, theme_name, flip_y=False, style_overrides=None
 # ─────────────────────────────────────────────────────────────────────────────
 def chart_defender_attacker_matchup(df, theme_name, flip_y=False, style_overrides=None):
     s   = resolve_style(theme_name, style_overrides)
-    dff = _prep(df, flip_y)
+    dff = _prep(_role_df(df, "delivery_end_only"), flip_y)
     dd  = dff.dropna(subset=["x2","y2"]).copy()
 
     dominant_side = _side_dominant(dff)
@@ -1641,7 +1682,7 @@ def chart_clearance_outcome_map(df, theme_name, flip_y=False, style_overrides=No
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "clearance"), flip_y)
 
     figsize = (6, 8.5) if vert else (10, 6.5)
     fig, ax = _base_fig(s, figsize)
@@ -1709,7 +1750,7 @@ def chart_set_piece_conceded_heatmap(df, theme_name, flip_y=False, style_overrid
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "delivery_end_only"), flip_y)
 
     figsize = (6.2, 8.8) if vert else (10.0, 6.8)
     fig, ax = _base_fig(s, figsize)
@@ -1758,7 +1799,7 @@ def chart_set_piece_conceded_heatmap(df, theme_name, flip_y=False, style_overrid
 # ─────────────────────────────────────────────────────────────────────────────
 def chart_defensive_success_rate_by_zone(df, theme_name, flip_y=False, style_overrides=None):
     s   = resolve_style(theme_name, style_overrides)
-    dff = _prep(df, flip_y)
+    dff = _prep(_role_df(df, "first_contact"), flip_y)
     dd  = dff.dropna(subset=["x2","y2"]).copy()
     dd["_fcw"]  = _get_fcw(dd)
     dd["_zone"] = dd.apply(lambda r: _infer_zone(r.get("x2"), r.get("y2")), axis=1)
@@ -1886,7 +1927,7 @@ def chart_second_ball_recovery_map(df, theme_name, flip_y=False, style_overrides
     s    = resolve_style(theme_name, style_overrides)
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
-    dff   = _prep(df, flip_y)
+    dff   = _prep(_role_df(df, "second_ball_zone"), flip_y)
 
     figsize = (6, 8.5) if vert else (10, 6.5)
     fig, ax = _base_fig(s, figsize)
@@ -1968,132 +2009,6 @@ def chart_second_ball_recovery_map(df, theme_name, flip_y=False, style_overrides
     return fig
 
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# NEW CONTACT / MARKING CHARTS
-# ─────────────────────────────────────────────────────────────────────────────
-def _shirt_counts(series):
-    s = series.dropna().astype(str).str.strip()
-    s = s[~s.isin(["", "nan", "none"])]
-    return s.value_counts().sort_values(ascending=False)
-
-def chart_first_contact_players_by_shirt(df, theme_name, flip_y=False, style_overrides=None):
-    s = resolve_style(theme_name, style_overrides)
-    dff = df.copy()
-
-    if "play_type" in dff.columns:
-        play = dff["play_type"].astype(str).str.lower().str.strip()
-        off = dff[play.eq("attack")].copy()
-        deff = dff[play.eq("defence")].copy()
-    else:
-        off = dff.copy()
-        deff = dff.iloc[0:0].copy()
-
-    off_counts = _shirt_counts(off.get("first_contact_player", pd.Series(dtype=object)))
-    def_counts = _shirt_counts(deff.get("first_contact_player", pd.Series(dtype=object)))
-
-    labels = sorted(set(off_counts.index.tolist()) | set(def_counts.index.tolist()), key=lambda x: (len(str(x)), str(x)))
-    off_vals = [int(off_counts.get(lbl, 0)) for lbl in labels]
-    def_vals = [int(def_counts.get(lbl, 0)) for lbl in labels]
-
-    fig, ax = _base_fig(s, (10, 5.4))
-    x = np.arange(len(labels))
-    w = 0.38
-    bcm = s.get("bar_colors", {})
-    bars1 = ax.bar(x - w/2, off_vals, w, color=bcm.get("default", s["accent"]),
-                   edgecolor=s["lines"], linewidth=0.8, label="Offensive")
-    bars2 = ax.bar(x + w/2, def_vals, w, color=bcm.get("danger", s["danger"]),
-                   edgecolor=s["lines"], linewidth=0.8, label="Defensive")
-
-    for bars in [bars1, bars2]:
-        for b in bars:
-            h = b.get_height()
-            if h > 0:
-                ax.text(b.get_x() + b.get_width()/2, h + 0.05, f"{int(h)}",
-                        ha="center", va="bottom", fontsize=max(s["tick_size"]-1, 7), color=s["text"])
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels if labels else ["No data"])
-    ax.set_ylabel("First contacts")
-    themed_bar(ax, s)
-    if s.get("show_legend", True):
-        leg = ax.legend(frameon=True)
-        style_legend(leg, s)
-    chart_title(ax, "First Contact Players by Shirt Number", s)
-    if s["tight_layout"]: fig.tight_layout()
-    return fig
-
-def chart_players_made_first_contact(df, theme_name, flip_y=False, style_overrides=None):
-    s = resolve_style(theme_name, style_overrides)
-    counts = _shirt_counts(df.get("first_contact_player", pd.Series(dtype=object))).head(15)
-
-    fig, ax = _base_fig(s, (8.6, 5.2))
-    bc = s.get("bar_colors", {}).get("default", s["accent"])
-    ax.barh(counts.index[::-1].astype(str), counts.values[::-1], color=bc,
-            edgecolor=s["lines"], linewidth=0.8)
-    for yi, val in enumerate(counts.values[::-1]):
-        ax.text(val + 0.05, yi, str(int(val)), va="center", ha="left",
-                fontsize=max(s["tick_size"]-1, 7), color=s["text"])
-    ax.set_xlabel("Count")
-    themed_bar(ax, s)
-    chart_title(ax, "Players Who Made First Contact", s)
-    if s["tight_layout"]: fig.tight_layout()
-    return fig
-
-def chart_players_lost_first_contact(df, theme_name, flip_y=False, style_overrides=None):
-    s = resolve_style(theme_name, style_overrides)
-    series = df.get("lost_first_contact_player", pd.Series(dtype=object))
-    counts = _shirt_counts(series).head(15)
-
-    fig, ax = _base_fig(s, (8.8, 5.2))
-    bc = s.get("bar_colors", {}).get("danger", s["danger"])
-    ax.barh(counts.index[::-1].astype(str), counts.values[::-1], color=bc,
-            edgecolor=s["lines"], linewidth=0.8)
-    for yi, val in enumerate(counts.values[::-1]):
-        ax.text(val + 0.05, yi, str(int(val)), va="center", ha="left",
-                fontsize=max(s["tick_size"]-1, 7), color=s["text"])
-    ax.set_xlabel("Count")
-    themed_bar(ax, s)
-    chart_title(ax, "Players That Lost First Contact", s)
-    if len(counts) == 0:
-        ax.text(0.5, 0.5, "Add 'lost_first_contact_player' column to the CSV",
-                ha="center", va="center", transform=ax.transAxes,
-                fontsize=s["label_size"], color=s["muted"])
-    if s["tight_layout"]: fig.tight_layout()
-    return fig
-
-def chart_box_marking_scheme(df, theme_name, flip_y=False, style_overrides=None):
-    s = resolve_style(theme_name, style_overrides)
-    fig, ax = _base_fig(s, (8.6, 5.2))
-    man = pd.to_numeric(df.get("man_marking_in_box", pd.Series(dtype=float)), errors="coerce")
-    zonal = pd.to_numeric(df.get("zonal_marking_in_box", pd.Series(dtype=float)), errors="coerce")
-
-    vals = [float(man.mean()) if man.notna().any() else 0.0,
-            float(zonal.mean()) if zonal.notna().any() else 0.0]
-    labels = ["Man Marking", "Zonal"]
-    colors = [s.get("bar_colors", {}).get("danger", s["danger"]),
-              s.get("bar_colors", {}).get("success", s["success"])]
-
-    bars = ax.bar(labels, vals, color=colors, edgecolor=s["lines"], linewidth=0.8)
-    for bar, val in zip(bars, vals):
-        ax.text(bar.get_x() + bar.get_width()/2, val + 0.05, f"{val:.1f}",
-                ha="center", va="bottom", fontsize=max(s["tick_size"]-1, 7), color=s["text"])
-
-    total = sum(vals)
-    if total > 0:
-        ax.text(0.98, 0.95,
-                f"Man: {vals[0]/total*100:.0f}%  |  Zonal: {vals[1]/total*100:.0f}%",
-                ha="right", va="top", transform=ax.transAxes,
-                fontsize=max(s["tick_size"]-1, 7), color=s["muted"],
-                bbox=dict(boxstyle="round,pad=0.25", facecolor=s["bg"], edgecolor=s["lines"], alpha=0.7))
-
-    ax.set_ylabel("Avg players inside box")
-    themed_bar(ax, s)
-    chart_title(ax, "Box Marking Scheme", s)
-    if s["tight_layout"]: fig.tight_layout()
-    return fig
-
-
 # ═════════════════════════════════════════════════════════════════════════════
 # REGISTRY
 # ═════════════════════════════════════════════════════════════════════════════
@@ -2126,10 +2041,6 @@ CHART_BUILDERS = {
     "Set Piece Landing Heatmap":               chart_set_piece_landing_heatmap,
     "Taker Stats Table":                       chart_taker_stats_table,
     "First Contact Location Map":              chart_first_contact_map,
-    "First Contact Players by Shirt Number":   chart_first_contact_players_by_shirt,
-    "Players Who Made First Contact":          chart_players_made_first_contact,
-    "Players That Lost First Contact":         chart_players_lost_first_contact,
-    "Box Marking Scheme":                      chart_box_marking_scheme,
     # ── DEFENSIVE ────────────────────────────────────────────────────────────
     "Defensive Shape Map":                     chart_defensive_shape_map,
     "Defender vs Attacker Zone Matchup":       chart_defender_attacker_matchup,
