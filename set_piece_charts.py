@@ -95,10 +95,6 @@ CHART_REQUIREMENTS: Dict[str, List[str]] = {
     "Set Piece Landing Heatmap":               ["x2", "y2"],
     "Taker Stats Table":                       ["taker"],
     "First Contact Location Map":              ["x2", "y2"],
-    "First Contact Players by Shirt Number":   ["first_contact_player"],
-    "Players Who Made First Contact":          ["first_contact_player"],
-    "Players That Lost First Contact":         ["lost_first_contact_player"],
-    "Box Marking Scheme":                      ["man_marking_in_box", "zonal_marking_in_box"],
     # ── NEW DEFENSIVE CHARTS ─────────────────────────────────────────────────
     "Defensive Shape Map":                     ["x2", "y2"],
     "Defender vs Attacker Zone Matchup":       ["x2", "y2"],
@@ -227,12 +223,8 @@ def chart_title(ax, t, s):
 def style_legend(leg, s):
     if not leg: return
     f = leg.get_frame()
-    if f:
-        f.set_facecolor(s.get("legend_bg", s["panel"]))
-        f.set_edgecolor(s.get("legend_border", s["lines"]))
-        f.set_alpha(0.95)
-    for t in leg.get_texts():
-        t.set_color(s.get("legend_text", s["text"]))
+    if f: f.set_facecolor(s["panel"]); f.set_edgecolor(s["lines"]); f.set_alpha(0.95)
+    for t in leg.get_texts(): t.set_color(s["text"])
 
 def fig_to_png_bytes(fig, dpi=260):
     buf = io.BytesIO()
@@ -1968,132 +1960,6 @@ def chart_second_ball_recovery_map(df, theme_name, flip_y=False, style_overrides
     return fig
 
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# NEW CONTACT / MARKING CHARTS
-# ─────────────────────────────────────────────────────────────────────────────
-def _shirt_counts(series):
-    s = series.dropna().astype(str).str.strip()
-    s = s[~s.isin(["", "nan", "none"])]
-    return s.value_counts().sort_values(ascending=False)
-
-def chart_first_contact_players_by_shirt(df, theme_name, flip_y=False, style_overrides=None):
-    s = resolve_style(theme_name, style_overrides)
-    dff = df.copy()
-
-    if "play_type" in dff.columns:
-        play = dff["play_type"].astype(str).str.lower().str.strip()
-        off = dff[play.eq("attack")].copy()
-        deff = dff[play.eq("defence")].copy()
-    else:
-        off = dff.copy()
-        deff = dff.iloc[0:0].copy()
-
-    off_counts = _shirt_counts(off.get("first_contact_player", pd.Series(dtype=object)))
-    def_counts = _shirt_counts(deff.get("first_contact_player", pd.Series(dtype=object)))
-
-    labels = sorted(set(off_counts.index.tolist()) | set(def_counts.index.tolist()), key=lambda x: (len(str(x)), str(x)))
-    off_vals = [int(off_counts.get(lbl, 0)) for lbl in labels]
-    def_vals = [int(def_counts.get(lbl, 0)) for lbl in labels]
-
-    fig, ax = _base_fig(s, (10, 5.4))
-    x = np.arange(len(labels))
-    w = 0.38
-    bcm = s.get("bar_colors", {})
-    bars1 = ax.bar(x - w/2, off_vals, w, color=bcm.get("default", s["accent"]),
-                   edgecolor=s["lines"], linewidth=0.8, label="Offensive")
-    bars2 = ax.bar(x + w/2, def_vals, w, color=bcm.get("danger", s["danger"]),
-                   edgecolor=s["lines"], linewidth=0.8, label="Defensive")
-
-    for bars in [bars1, bars2]:
-        for b in bars:
-            h = b.get_height()
-            if h > 0:
-                ax.text(b.get_x() + b.get_width()/2, h + 0.05, f"{int(h)}",
-                        ha="center", va="bottom", fontsize=max(s["tick_size"]-1, 7), color=s["text"])
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels if labels else ["No data"])
-    ax.set_ylabel("First contacts")
-    themed_bar(ax, s)
-    if s.get("show_legend", True):
-        leg = ax.legend(frameon=True)
-        style_legend(leg, s)
-    chart_title(ax, "First Contact Players by Shirt Number", s)
-    if s["tight_layout"]: fig.tight_layout()
-    return fig
-
-def chart_players_made_first_contact(df, theme_name, flip_y=False, style_overrides=None):
-    s = resolve_style(theme_name, style_overrides)
-    counts = _shirt_counts(df.get("first_contact_player", pd.Series(dtype=object))).head(15)
-
-    fig, ax = _base_fig(s, (8.6, 5.2))
-    bc = s.get("bar_colors", {}).get("default", s["accent"])
-    ax.barh(counts.index[::-1].astype(str), counts.values[::-1], color=bc,
-            edgecolor=s["lines"], linewidth=0.8)
-    for yi, val in enumerate(counts.values[::-1]):
-        ax.text(val + 0.05, yi, str(int(val)), va="center", ha="left",
-                fontsize=max(s["tick_size"]-1, 7), color=s["text"])
-    ax.set_xlabel("Count")
-    themed_bar(ax, s)
-    chart_title(ax, "Players Who Made First Contact", s)
-    if s["tight_layout"]: fig.tight_layout()
-    return fig
-
-def chart_players_lost_first_contact(df, theme_name, flip_y=False, style_overrides=None):
-    s = resolve_style(theme_name, style_overrides)
-    series = df.get("lost_first_contact_player", pd.Series(dtype=object))
-    counts = _shirt_counts(series).head(15)
-
-    fig, ax = _base_fig(s, (8.8, 5.2))
-    bc = s.get("bar_colors", {}).get("danger", s["danger"])
-    ax.barh(counts.index[::-1].astype(str), counts.values[::-1], color=bc,
-            edgecolor=s["lines"], linewidth=0.8)
-    for yi, val in enumerate(counts.values[::-1]):
-        ax.text(val + 0.05, yi, str(int(val)), va="center", ha="left",
-                fontsize=max(s["tick_size"]-1, 7), color=s["text"])
-    ax.set_xlabel("Count")
-    themed_bar(ax, s)
-    chart_title(ax, "Players That Lost First Contact", s)
-    if len(counts) == 0:
-        ax.text(0.5, 0.5, "Add 'lost_first_contact_player' column to the CSV",
-                ha="center", va="center", transform=ax.transAxes,
-                fontsize=s["label_size"], color=s["muted"])
-    if s["tight_layout"]: fig.tight_layout()
-    return fig
-
-def chart_box_marking_scheme(df, theme_name, flip_y=False, style_overrides=None):
-    s = resolve_style(theme_name, style_overrides)
-    fig, ax = _base_fig(s, (8.6, 5.2))
-    man = pd.to_numeric(df.get("man_marking_in_box", pd.Series(dtype=float)), errors="coerce")
-    zonal = pd.to_numeric(df.get("zonal_marking_in_box", pd.Series(dtype=float)), errors="coerce")
-
-    vals = [float(man.mean()) if man.notna().any() else 0.0,
-            float(zonal.mean()) if zonal.notna().any() else 0.0]
-    labels = ["Man Marking", "Zonal"]
-    colors = [s.get("bar_colors", {}).get("danger", s["danger"]),
-              s.get("bar_colors", {}).get("success", s["success"])]
-
-    bars = ax.bar(labels, vals, color=colors, edgecolor=s["lines"], linewidth=0.8)
-    for bar, val in zip(bars, vals):
-        ax.text(bar.get_x() + bar.get_width()/2, val + 0.05, f"{val:.1f}",
-                ha="center", va="bottom", fontsize=max(s["tick_size"]-1, 7), color=s["text"])
-
-    total = sum(vals)
-    if total > 0:
-        ax.text(0.98, 0.95,
-                f"Man: {vals[0]/total*100:.0f}%  |  Zonal: {vals[1]/total*100:.0f}%",
-                ha="right", va="top", transform=ax.transAxes,
-                fontsize=max(s["tick_size"]-1, 7), color=s["muted"],
-                bbox=dict(boxstyle="round,pad=0.25", facecolor=s["bg"], edgecolor=s["lines"], alpha=0.7))
-
-    ax.set_ylabel("Avg players inside box")
-    themed_bar(ax, s)
-    chart_title(ax, "Box Marking Scheme", s)
-    if s["tight_layout"]: fig.tight_layout()
-    return fig
-
-
 # ═════════════════════════════════════════════════════════════════════════════
 # REGISTRY
 # ═════════════════════════════════════════════════════════════════════════════
@@ -2126,10 +1992,6 @@ CHART_BUILDERS = {
     "Set Piece Landing Heatmap":               chart_set_piece_landing_heatmap,
     "Taker Stats Table":                       chart_taker_stats_table,
     "First Contact Location Map":              chart_first_contact_map,
-    "First Contact Players by Shirt Number":   chart_first_contact_players_by_shirt,
-    "Players Who Made First Contact":          chart_players_made_first_contact,
-    "Players That Lost First Contact":         chart_players_lost_first_contact,
-    "Box Marking Scheme":                      chart_box_marking_scheme,
     # ── DEFENSIVE ────────────────────────────────────────────────────────────
     "Defensive Shape Map":                     chart_defensive_shape_map,
     "Defender vs Attacker Zone Matchup":       chart_defender_attacker_matchup,
@@ -2139,3 +2001,108 @@ CHART_BUILDERS = {
     "First Contact Win Rate Trend":            chart_first_contact_win_rate_trend,
     "Second Ball Recovery Map":                chart_second_ball_recovery_map,
 }
+# ─────────────────────────────────────────────────────────────────────────────
+# CUSTOM TACTICAL BOARD BUILDER
+# ─────────────────────────────────────────────────────────────────────────────
+def chart_tactical_board(players_df, actions_df=None, theme_name="Dark", style_overrides=None,
+                         title="Custom Tactical Board", orientation="Horizontal",
+                         show_names=True, show_numbers=True, half_pitch=False,
+                         team_a_label="Team A", team_b_label="Team B",
+                         team_a_color="#0074D9", team_b_color="#FF4136",
+                         team_a_text="#FFFFFF", team_b_text="#FFFFFF",
+                         player_size=360, name_size=10, number_size=10,
+                         show_grid=True, watermark="TACTICALista"):
+    """Interactive tactical-board figure used by the Streamlit custom builder.
+
+    players_df columns: team, number, name, x, y, role(optional)
+    actions_df columns: x, y, x2, y2, color, label, style, width, curve(optional)
+    Coordinates use the same 100 x 64 pitch system as the rest of the app.
+    """
+    s = resolve_style(theme_name, style_overrides or {})
+    vert = str(orientation).lower().startswith("vertical")
+    pitch = make_pitch(s, vert)
+    fig, ax = _base_fig(s, (6.4, 8.6) if vert else (11.0, 7.2))
+    pitch.draw(ax=ax)
+    _setup_pitch_axes(ax, s, vert)
+
+    if half_pitch:
+        if vert:
+            ax.set_ylim(50, 103)
+        else:
+            ax.set_xlim(50, 103)
+
+    if show_grid:
+        grid_c = s.get("lines", "#D9D9D9")
+        for gx in [100/3, 200/3]:
+            if vert: ax.axhline(gx, color=grid_c, lw=0.8, alpha=0.28, zorder=1)
+            else: ax.axvline(gx, color=grid_c, lw=0.8, alpha=0.28, zorder=1)
+        for gy in [64/3, 128/3]:
+            if vert: ax.axvline(gy, color=grid_c, lw=0.8, alpha=0.28, zorder=1)
+            else: ax.axhline(gy, color=grid_c, lw=0.8, alpha=0.28, zorder=1)
+
+    # Actions / movements first, behind players
+    if actions_df is not None and len(actions_df):
+        adf = actions_df.copy()
+        for c in ["x", "y", "x2", "y2", "width", "curve"]:
+            if c in adf.columns:
+                adf[c] = pd.to_numeric(adf[c], errors="coerce")
+        adf = adf.dropna(subset=["x", "y", "x2", "y2"])
+        for _, r in adf.iterrows():
+            color = str(r.get("color", s.get("danger", "#FF0000")))
+            style = str(r.get("style", "arrow")).lower().strip()
+            lw = float(r.get("width", 2.4) if pd.notna(r.get("width", 2.4)) else 2.4)
+            curve = float(r.get("curve", 0.0) if pd.notna(r.get("curve", 0.0)) else 0.0)
+            x1, y1, x2, y2 = float(r["x"]), float(r["y"]), float(r["x2"]), float(r["y2"])
+            if vert:
+                x1, y1, x2, y2 = y1, x1, y2, x2
+            if style in ["dashed", "run", "dotted"]:
+                ls = "--" if style != "dotted" else ":"
+                ax.plot([x1, x2], [y1, y2], color=color, lw=lw, ls=ls, alpha=0.95, zorder=5)
+            else:
+                ax.add_patch(FancyArrowPatch((x1, y1), (x2, y2),
+                    connectionstyle=f"arc3,rad={curve}", arrowstyle="-|>",
+                    mutation_scale=14, linewidth=lw, color=color,
+                    alpha=0.95, zorder=5, clip_on=True))
+            label = str(r.get("label", "")).strip()
+            if label and label.lower() != "nan":
+                ax.text((x1+x2)/2, (y1+y2)/2, label, ha="center", va="center",
+                        fontsize=max(s.get("tick_size", 10)-1, 7), color=color,
+                        bbox=dict(boxstyle="round,pad=0.18", facecolor=s.get("bg", "white"),
+                                  edgecolor="none", alpha=0.65), zorder=8)
+
+    pdf = players_df.copy() if players_df is not None else pd.DataFrame()
+    if len(pdf):
+        for c in ["x", "y", "number"]:
+            if c in pdf.columns:
+                pdf[c] = pd.to_numeric(pdf[c], errors="coerce")
+        pdf = pdf.dropna(subset=["x", "y"])
+        for _, r in pdf.iterrows():
+            team = str(r.get("team", team_a_label)).strip()
+            is_b = team.lower() in [team_b_label.lower(), "team b", "b", "opponent", "defence", "defense"]
+            body = team_b_color if is_b else team_a_color
+            txt = team_b_text if is_b else team_a_text
+            x, y = float(r["x"]), float(r["y"])
+            if vert: x, y = y, x
+            ax.scatter([x], [y], s=player_size, color=body, edgecolors=s.get("pitch_lines", "white"),
+                       linewidths=1.4, zorder=10, clip_on=False)
+            if show_numbers:
+                num = r.get("number", "")
+                if pd.notna(num):
+                    try: num = str(int(num))
+                    except Exception: num = str(num)
+                    ax.text(x, y, num, ha="center", va="center", fontsize=number_size,
+                            fontweight="bold", color=txt, zorder=11)
+            if show_names:
+                name = str(r.get("name", "")).strip()
+                if name and name.lower() != "nan":
+                    ax.text(x, y-4.2 if not vert else y-3.6, name, ha="center", va="top",
+                            fontsize=name_size, color=s.get("text", "#111"), zorder=11,
+                            path_effects=[mpl_pe.withStroke(linewidth=2.5, foreground=s.get("bg", "white"), alpha=0.7)])
+
+    chart_title(ax, title, s)
+    if watermark:
+        ax.text(0.985, 0.02, watermark, transform=ax.transAxes, ha="right", va="bottom",
+                fontsize=max(s.get("title_size", 16), 14), fontweight="bold",
+                color=s.get("text", "#111"), alpha=0.90, zorder=20)
+    if s.get("tight_layout", True): fig.tight_layout()
+    return fig
