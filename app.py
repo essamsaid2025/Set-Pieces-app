@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 from data_utils import load_data, normalize_set_piece_df, ensure_columns, apply_flip_y
 from ui_theme import (
@@ -16,6 +17,7 @@ from set_piece_charts import (
     CHART_BUILDERS,
     save_report_pdf,
     fig_to_png_bytes,
+    chart_tactical_board,
 )
 
 st.set_page_config(
@@ -75,9 +77,6 @@ with st.sidebar:
         success = st.color_picker("Success", base_theme["success"])
         warning = st.color_picker("Warning", base_theme["warning"])
         danger = st.color_picker("Danger", base_theme["danger"])
-        legend_bg = st.color_picker("Legend background", base_theme.get("legend_bg", base_theme["panel"]))
-        legend_border = st.color_picker("Legend border", base_theme.get("legend_border", base_theme["lines"]))
-        legend_text = st.color_picker("Legend text", base_theme.get("legend_text", base_theme["text"]))
 
     with st.expander("Typography", expanded=False):
         title_size = st.slider("Title size", 10, 28, 16)
@@ -162,10 +161,6 @@ with st.sidebar:
         "Avg Players Per Zone - Left Corner",
         "Avg Players Per Zone - Right Corner",
         "First Contact Location Map",
-        "First Contact Players by Shirt Number",
-        "Players Who Made First Contact",
-        "Players That Lost First Contact",
-        "Box Marking Scheme",
         "Set Piece Landing Heatmap",
         "Taker Stats Table",
     ]
@@ -222,9 +217,6 @@ style_overrides = {
     "success": success,
     "warning": warning,
     "danger": danger,
-    "legend_bg": legend_bg,
-    "legend_border": legend_border,
-    "legend_text": legend_text,
     "font_family": font_family,
     "title_size": title_size,
     "label_size": label_size,
@@ -307,9 +299,6 @@ with left_col:
         <b>outcome</b> — Successful / Unsuccessful<br>
         <b>defenders_near_post</b> — integer count<br>
         <b>defenders_far_post</b> — integer count<br>
-        <b>man_marking_in_box</b> — number of man-marking defenders in box<br>
-        <b>zonal_marking_in_box</b> — number of zonal defenders in box<br>
-        <b>lost_first_contact_player</b> — shirt number of player who lost first contact<br>
         <b>opponent</b> — match label for trend chart<br><br>
         Charts degrade gracefully when columns are missing.
         </div>
@@ -321,6 +310,67 @@ with left_col:
 with right_col:
     st.markdown('<div class="preview-shell">', unsafe_allow_html=True)
     st.markdown("### 📊 Preview & Downloads")
+
+    st.markdown("---")
+    st.markdown("## 🧩 Custom Tactical Board")
+    st.caption("Build a custom board like Tacticalista: players, names, arrows, dashed runs, set-piece movements.")
+
+    with st.expander("Open Tactical Board Builder", expanded=False):
+        tb_title = st.text_input("Board title", "Custom Tactical Board")
+        tb_orientation = st.radio("Board orientation", ["Horizontal", "Vertical"], horizontal=True, key="tb_orientation")
+        tb_half = st.checkbox("Half pitch only", value=False, key="tb_half")
+        tb_grid = st.checkbox("Show zone grid", value=True, key="tb_grid")
+        tb_names = st.checkbox("Show player names", value=True, key="tb_names")
+        tb_numbers = st.checkbox("Show shirt numbers", value=True, key="tb_numbers")
+
+        cta, ctb, ctc, ctd = st.columns(4)
+        with cta:
+            tb_team_a = st.text_input("Team A label", "Team A")
+            tb_team_a_color = st.color_picker("Team A color", "#0074D9")
+        with ctb:
+            tb_team_b = st.text_input("Team B label", "Team B")
+            tb_team_b_color = st.color_picker("Team B color", "#FF0000")
+        with ctc:
+            tb_player_size = st.slider("Player circle size", 120, 900, 360, 20)
+            tb_name_size = st.slider("Name font", 6, 20, 10)
+        with ctd:
+            tb_number_size = st.slider("Number font", 6, 22, 10)
+            tb_watermark = st.text_input("Watermark", "TACTICALista")
+
+        default_players = pd.DataFrame([
+            {"team": "Team A", "number": 21, "name": "Taker", "x": 99, "y": 63},
+            {"team": "Team A", "number": 11, "name": "Runner", "x": 88, "y": 35},
+            {"team": "Team A", "number": 19, "name": "Block", "x": 84, "y": 39},
+            {"team": "Team B", "number": 1, "name": "Def", "x": 92, "y": 32},
+            {"team": "Team B", "number": 5, "name": "Def", "x": 89, "y": 30},
+        ])
+        default_actions = pd.DataFrame([
+            {"x": 99, "y": 63, "x2": 96, "y2": 31, "color": "#E00000", "style": "arrow", "width": 2.8, "curve": 0.25, "label": "delivery"},
+            {"x": 84, "y": 39, "x2": 86, "y2": 31, "color": "#000000", "style": "dashed", "width": 2.0, "curve": 0.00, "label": "run"},
+        ])
+
+        st.markdown("**Players** — use x 0→100 length, y 0→64 width")
+        tb_players = st.data_editor(default_players, num_rows="dynamic", use_container_width=True, key="tb_players")
+        st.markdown("**Actions / Arrows**")
+        tb_actions = st.data_editor(default_actions, num_rows="dynamic", use_container_width=True, key="tb_actions")
+
+        if st.button("Generate Tactical Board", use_container_width=True):
+            tb_fig = chart_tactical_board(
+                tb_players, tb_actions, theme_name=theme_name, style_overrides=chart_style,
+                title=tb_title, orientation=tb_orientation, half_pitch=tb_half, show_grid=tb_grid,
+                show_names=tb_names, show_numbers=tb_numbers, team_a_label=tb_team_a, team_b_label=tb_team_b,
+                team_a_color=tb_team_a_color, team_b_color=tb_team_b_color,
+                player_size=tb_player_size, name_size=tb_name_size, number_size=tb_number_size,
+                watermark=tb_watermark,
+            )
+            st.pyplot(tb_fig, use_container_width=True)
+            st.download_button(
+                "⬇️ Download Tactical Board PNG",
+                data=fig_to_png_bytes(tb_fig, dpi=chart_style["export_dpi"]),
+                file_name="custom_tactical_board.png",
+                mime="image/png",
+                key="download_tactical_board_png",
+            )
 
     if uploaded is None:
         render_placeholder(
