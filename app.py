@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 
 from data_utils import load_data, normalize_set_piece_df, ensure_columns, apply_flip_y
 from ui_theme import (
@@ -17,7 +16,6 @@ from set_piece_charts import (
     CHART_BUILDERS,
     save_report_pdf,
     fig_to_png_bytes,
-    chart_tactical_board,
 )
 
 st.set_page_config(
@@ -31,6 +29,101 @@ render_header(
     title="⚽ Set Piece Analysis App",
     subtitle="Upload CSV / Excel → Set Piece Reports → Styled Visual Analysis",
 )
+
+
+import streamlit.components.v1 as components
+
+# ─────────────────────────────────────────────────────────────────────────────
+# INTERACTIVE TACTICAL BOARD (mouse drag players + curved arrows)
+# ─────────────────────────────────────────────────────────────────────────────
+def render_interactive_tactical_board():
+    st.markdown("## 🧠 Interactive Tactical Board")
+    st.caption("Drag players with the mouse. Add arrows, then drag the arrow start/end/control handle to change length and curve.")
+    html = r'''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Inter, Arial, sans-serif; background:#0b1220; color:#e5e7eb; }
+  .wrap { display:grid; grid-template-columns: 280px 1fr; gap:14px; padding:14px; }
+  .panel { background:#111827; border:1px solid #263244; border-radius:16px; padding:14px; box-shadow:0 10px 28px rgba(0,0,0,.25); }
+  .panel h3 { margin:0 0 12px; font-size:16px; }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:8px; }
+  label { display:block; font-size:12px; color:#9ca3af; margin:6px 0 4px; }
+  input, select, button { width:100%; border-radius:10px; border:1px solid #374151; background:#0f172a; color:#e5e7eb; padding:9px; }
+  input[type=color] { padding:2px; height:38px; }
+  button { cursor:pointer; font-weight:700; }
+  button:hover { background:#1f2937; }
+  button.active { background:#2563eb; border-color:#60a5fa; }
+  .small { font-size:12px; color:#9ca3af; line-height:1.45; }
+  .canvasBox { background:#111827; border:1px solid #263244; border-radius:16px; padding:12px; overflow:auto; }
+  canvas { background:#f8fafc; border-radius:10px; display:block; margin:auto; cursor:default; }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .toolbar button { width:auto; min-width:95px; }
+  .hint { margin-top:8px; color:#9ca3af; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h3>Controls</h3>
+    <div class="toolbar">
+      <button id="selectBtn" class="active">Move / Edit</button>
+      <button id="addPlayerBtn">Add Player</button>
+      <button id="addArrowBtn">Add Arrow</button>
+      <button id="deleteBtn">Delete Selected</button>
+    </div>
+    <div class="row"><div><label>Pitch</label><select id="orientation"><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option></select></div><div><label>Pitch bg</label><input id="pitchBg" type="color" value="#ffffff" /></div></div>
+    <div class="row"><div><label>Line color</label><input id="lineColor" type="color" value="#111111" /></div><div><label>Player size</label><input id="playerSize" type="number" min="10" max="38" value="18" /></div></div>
+    <hr style="border-color:#263244;margin:14px 0;">
+    <h3>New / Selected Player</h3>
+    <div class="row"><div><label>Number</label><input id="pNum" value="8" /></div><div><label>Name</label><input id="pName" value="Player" /></div></div>
+    <div class="row"><div><label>Color</label><input id="pColor" type="color" value="#ff0000" /></div><div><label>Text</label><input id="pText" type="color" value="#ffffff" /></div></div>
+    <h3>Arrow Style</h3>
+    <div class="row"><div><label>Color</label><input id="aColor" type="color" value="#d60000" /></div><div><label>Width</label><input id="aWidth" type="number" min="1" max="12" value="4" /></div></div>
+    <div class="row"><div><label>Style</label><select id="aStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div><div><label>Arrow head</label><input id="aHead" type="number" min="6" max="30" value="16" /></div></div>
+    <button id="downloadBtn">Download PNG</button><button id="clearBtn" style="margin-top:8px;">Clear Board</button>
+    <p class="small"><b>How to use:</b><br>Add Player → click anywhere on the pitch.<br>Add Arrow → click start then click end.<br>Move/Edit → drag player or arrow handles.<br>Arrow middle handle controls the curve.</p>
+  </div>
+  <div class="canvasBox"><canvas id="board" width="1100" height="720"></canvas><div class="hint" id="hint">Mode: Move / Edit</div></div>
+</div>
+<script>
+const canvas=document.getElementById('board'); const ctx=canvas.getContext('2d'); const $=(id)=>document.getElementById(id);
+let mode='select', selected=null, drag=null, arrowStart=null;
+let players=[{id:1,x:360,y:215,num:'6',name:'Murillo',color:'#ff0000',text:'#ffffff'},{id:2,x:585,y:310,num:'8',name:'E Anderson',color:'#ff0000',text:'#ffffff'},{id:3,x:705,y:420,num:'10',name:'Gibbs White',color:'#ff0000',text:'#ffffff'},{id:4,x:760,y:215,num:'16',name:'Dominguez',color:'#ff0000',text:'#ffffff'}];
+let arrows=[]; let nextId=10;
+function setMode(m){mode=m; selected=null; drag=null; arrowStart=null; $('selectBtn').classList.toggle('active',m==='select'); $('addPlayerBtn').classList.toggle('active',m==='player'); $('addArrowBtn').classList.toggle('active',m==='arrow'); $('hint').textContent=m==='select'?'Mode: Move / Edit':(m==='player'?'Mode: Add Player — click pitch':'Mode: Add Arrow — click start then end'); draw();}
+$('selectBtn').onclick=()=>setMode('select'); $('addPlayerBtn').onclick=()=>setMode('player'); $('addArrowBtn').onclick=()=>setMode('arrow');
+['orientation','pitchBg','lineColor','playerSize','pNum','pName','pColor','pText','aColor','aWidth','aStyle','aHead'].forEach(id=>{$(id).addEventListener('input',()=>{ if(selected&&selected.type==='player'){const p=players.find(x=>x.id===selected.id); if(p){p.num=$('pNum').value; p.name=$('pName').value; p.color=$('pColor').value; p.text=$('pText').value;}} if(selected&&selected.type==='arrow'){const a=arrows.find(x=>x.id===selected.id); if(a){a.color=$('aColor').value; a.width=Number($('aWidth').value); a.style=$('aStyle').value; a.head=Number($('aHead').value);}} resizeCanvas(); draw();});});
+$('deleteBtn').onclick=()=>{if(!selected)return; if(selected.type==='player')players=players.filter(p=>p.id!==selected.id); if(selected.type==='arrow')arrows=arrows.filter(a=>a.id!==selected.id); selected=null; draw();};
+$('clearBtn').onclick=()=>{if(confirm('Clear all players and arrows?')){players=[]; arrows=[]; selected=null; draw();}};
+$('downloadBtn').onclick=()=>{draw(false); const link=document.createElement('a'); link.download='tactical_board.png'; link.href=canvas.toDataURL('image/png'); link.click(); draw(true);};
+function resizeCanvas(){if($('orientation').value==='vertical'){canvas.width=760; canvas.height=1080;} else {canvas.width=1100; canvas.height=720;}}
+function pitchRect(){return {x:30,y:30,w:canvas.width-60,h:canvas.height-60};}
+function drawPitch(){const r=pitchRect(); ctx.fillStyle=$('pitchBg').value; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.strokeStyle=$('lineColor').value; ctx.lineWidth=3; const x=r.x,y=r.y,w=r.w,h=r.h; ctx.strokeRect(x,y,w,h); ctx.beginPath(); ctx.moveTo(x+w/2,y); ctx.lineTo(x+w/2,y+h); ctx.stroke(); ctx.beginPath(); ctx.arc(x+w/2,y+h/2,80,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(x+w/2,y+h/2,4,0,Math.PI*2); ctx.fillStyle=$('lineColor').value; ctx.fill(); const boxW=w*0.16,boxH=h*0.58,sixW=w*0.055,sixH=h*0.28; ctx.strokeRect(x,y+(h-boxH)/2,boxW,boxH); ctx.strokeRect(x,y+(h-sixH)/2,sixW,sixH); ctx.strokeRect(x+w-boxW,y+(h-boxH)/2,boxW,boxH); ctx.strokeRect(x+w-sixW,y+(h-sixH)/2,sixW,sixH); ctx.fillRect(x+w*0.11-3,y+h/2-3,6,6); ctx.fillRect(x+w-w*0.11-3,y+h/2-3,6,6); ctx.strokeRect(x-10,y+h/2-32,10,64); ctx.strokeRect(x+w,y+h/2-32,10,64);}
+function handle(x,y,c){ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2); ctx.fillStyle=c; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();}
+function drawArrow(a,showHandles=true){ctx.save(); ctx.strokeStyle=a.color; ctx.fillStyle=a.color; ctx.lineWidth=a.width; ctx.lineCap='round'; if(a.style==='dashed')ctx.setLineDash([16,12]); if(a.style==='dotted')ctx.setLineDash([3,12]); ctx.beginPath(); ctx.moveTo(a.x1,a.y1); ctx.quadraticCurveTo(a.cx,a.cy,a.x2,a.y2); ctx.stroke(); ctx.setLineDash([]); const ang=Math.atan2(a.y2-a.cy,a.x2-a.cx); const head=a.head||16; ctx.beginPath(); ctx.moveTo(a.x2,a.y2); ctx.lineTo(a.x2-head*Math.cos(ang-Math.PI/6),a.y2-head*Math.sin(ang-Math.PI/6)); ctx.lineTo(a.x2-head*Math.cos(ang+Math.PI/6),a.y2-head*Math.sin(ang+Math.PI/6)); ctx.closePath(); ctx.fill(); ctx.restore(); if(showHandles&&selected&&selected.type==='arrow'&&selected.id===a.id){handle(a.x1,a.y1,'#22c55e'); handle(a.x2,a.y2,'#ef4444'); handle(a.cx,a.cy,'#2563eb'); ctx.save(); ctx.setLineDash([5,6]); ctx.strokeStyle='#64748b'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(a.x1,a.y1); ctx.lineTo(a.cx,a.cy); ctx.lineTo(a.x2,a.y2); ctx.stroke(); ctx.restore();}}
+function drawPlayer(p){const size=Number($('playerSize').value)||18; ctx.save(); ctx.beginPath(); ctx.arc(p.x,p.y,size,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill(); ctx.strokeStyle=(selected&&selected.type==='player'&&selected.id===p.id)?'#facc15':'#ffffff'; ctx.lineWidth=(selected&&selected.type==='player'&&selected.id===p.id)?4:2; ctx.stroke(); ctx.fillStyle=p.text; ctx.font=`bold ${Math.max(11,size-3)}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.num,p.x,p.y); if(p.name){ctx.fillStyle='#111827'; ctx.font='18px Arial'; ctx.fillText(p.name,p.x,p.y+size+22);} ctx.restore();}
+function draw(showHandles=true){drawPitch(); arrows.forEach(a=>drawArrow(a,showHandles)); players.forEach(drawPlayer); if(arrowStart)handle(arrowStart.x,arrowStart.y,'#facc15');}
+function pos(evt){const rect=canvas.getBoundingClientRect(); return {x:(evt.clientX-rect.left)*canvas.width/rect.width,y:(evt.clientY-rect.top)*canvas.height/rect.height};}
+function dist(a,b,c,d){return Math.hypot(a-c,b-d);} function hitPlayer(x,y){const size=(Number($('playerSize').value)||18)+6; for(let i=players.length-1;i>=0;i--){if(dist(x,y,players[i].x,players[i].y)<=size)return players[i];} return null;}
+function hitArrowHandle(x,y){for(let i=arrows.length-1;i>=0;i--){const a=arrows[i]; if(dist(x,y,a.x1,a.y1)<12)return {a,part:'start'}; if(dist(x,y,a.x2,a.y2)<12)return {a,part:'end'}; if(dist(x,y,a.cx,a.cy)<12)return {a,part:'control'};} return null;}
+function hitArrowCurve(x,y){for(let i=arrows.length-1;i>=0;i--){const a=arrows[i]; for(let t=0;t<=1;t+=0.04){const qx=(1-t)*(1-t)*a.x1+2*(1-t)*t*a.cx+t*t*a.x2; const qy=(1-t)*(1-t)*a.y1+2*(1-t)*t*a.cy+t*t*a.y2; if(dist(x,y,qx,qy)<10)return a;}} return null;}
+function loadSelectedToControls(){if(!selected)return; if(selected.type==='player'){const p=players.find(x=>x.id===selected.id); if(p){$('pNum').value=p.num; $('pName').value=p.name; $('pColor').value=p.color; $('pText').value=p.text;}} if(selected.type==='arrow'){const a=arrows.find(x=>x.id===selected.id); if(a){$('aColor').value=a.color; $('aWidth').value=a.width; $('aStyle').value=a.style; $('aHead').value=a.head;}}}
+canvas.addEventListener('mousedown',(evt)=>{const p=pos(evt); if(mode==='player'){players.push({id:nextId++,x:p.x,y:p.y,num:$('pNum').value||String(players.length+1),name:$('pName').value,color:$('pColor').value,text:$('pText').value}); selected={type:'player',id:players[players.length-1].id}; setMode('select'); loadSelectedToControls(); draw(); return;} if(mode==='arrow'){if(!arrowStart){arrowStart=p; draw(); return;} const mx=(arrowStart.x+p.x)/2,my=(arrowStart.y+p.y)/2; const a={id:nextId++,x1:arrowStart.x,y1:arrowStart.y,x2:p.x,y2:p.y,cx:mx,cy:my-80,color:$('aColor').value,width:Number($('aWidth').value),style:$('aStyle').value,head:Number($('aHead').value)}; arrows.push(a); selected={type:'arrow',id:a.id}; arrowStart=null; setMode('select'); loadSelectedToControls(); draw(); return;} const ph=hitPlayer(p.x,p.y); if(ph){selected={type:'player',id:ph.id}; drag={type:'player',id:ph.id,dx:p.x-ph.x,dy:p.y-ph.y}; loadSelectedToControls(); draw(); return;} const ah=hitArrowHandle(p.x,p.y); if(ah){selected={type:'arrow',id:ah.a.id}; drag={type:'arrowHandle',id:ah.a.id,part:ah.part}; loadSelectedToControls(); draw(); return;} const ac=hitArrowCurve(p.x,p.y); if(ac){selected={type:'arrow',id:ac.id}; drag={type:'arrowMove',id:ac.id,last:p}; loadSelectedToControls(); draw(); return;} selected=null; draw();});
+canvas.addEventListener('mousemove',(evt)=>{const p=pos(evt); if(!drag){canvas.style.cursor=hitPlayer(p.x,p.y)||hitArrowHandle(p.x,p.y)||hitArrowCurve(p.x,p.y)?'grab':'default'; return;} canvas.style.cursor='grabbing'; if(drag.type==='player'){const pl=players.find(x=>x.id===drag.id); if(pl){pl.x=p.x-drag.dx; pl.y=p.y-drag.dy;}} if(drag.type==='arrowHandle'){const a=arrows.find(x=>x.id===drag.id); if(a){if(drag.part==='start'){a.x1=p.x; a.y1=p.y;} if(drag.part==='end'){a.x2=p.x; a.y2=p.y;} if(drag.part==='control'){a.cx=p.x; a.cy=p.y;}}} if(drag.type==='arrowMove'){const a=arrows.find(x=>x.id===drag.id); if(a){const dx=p.x-drag.last.x,dy=p.y-drag.last.y; a.x1+=dx; a.y1+=dy; a.x2+=dx; a.y2+=dy; a.cx+=dx; a.cy+=dy; drag.last=p;}} draw();});
+window.addEventListener('mouseup',()=>{drag=null; canvas.style.cursor='default';}); resizeCanvas(); draw();
+</script>
+</body>
+</html>
+'''
+    components.html(html, height=1180, scrolling=True)
+
+page = st.sidebar.selectbox("Page", ["Set Piece Charts", "Interactive Tactical Board"], index=0)
+if page == "Interactive Tactical Board":
+    render_interactive_tactical_board()
+    st.stop()
 
 with st.sidebar:
     st.markdown("## 🎛️ Global Controls")
@@ -77,6 +170,9 @@ with st.sidebar:
         success = st.color_picker("Success", base_theme["success"])
         warning = st.color_picker("Warning", base_theme["warning"])
         danger = st.color_picker("Danger", base_theme["danger"])
+        legend_bg = st.color_picker("Legend background", base_theme.get("legend_bg", base_theme["panel"]))
+        legend_border = st.color_picker("Legend border", base_theme.get("legend_border", base_theme["lines"]))
+        legend_text = st.color_picker("Legend text", base_theme.get("legend_text", base_theme["text"]))
 
     with st.expander("Typography", expanded=False):
         title_size = st.slider("Title size", 10, 28, 16)
@@ -161,6 +257,10 @@ with st.sidebar:
         "Avg Players Per Zone - Left Corner",
         "Avg Players Per Zone - Right Corner",
         "First Contact Location Map",
+        "First Contact Players by Shirt Number",
+        "Players Who Made First Contact",
+        "Players That Lost First Contact",
+        "Box Marking Scheme",
         "Set Piece Landing Heatmap",
         "Taker Stats Table",
     ]
@@ -217,6 +317,9 @@ style_overrides = {
     "success": success,
     "warning": warning,
     "danger": danger,
+    "legend_bg": legend_bg,
+    "legend_border": legend_border,
+    "legend_text": legend_text,
     "font_family": font_family,
     "title_size": title_size,
     "label_size": label_size,
@@ -299,6 +402,9 @@ with left_col:
         <b>outcome</b> — Successful / Unsuccessful<br>
         <b>defenders_near_post</b> — integer count<br>
         <b>defenders_far_post</b> — integer count<br>
+        <b>man_marking_in_box</b> — number of man-marking defenders in box<br>
+        <b>zonal_marking_in_box</b> — number of zonal defenders in box<br>
+        <b>lost_first_contact_player</b> — shirt number of player who lost first contact<br>
         <b>opponent</b> — match label for trend chart<br><br>
         Charts degrade gracefully when columns are missing.
         </div>
@@ -310,67 +416,6 @@ with left_col:
 with right_col:
     st.markdown('<div class="preview-shell">', unsafe_allow_html=True)
     st.markdown("### 📊 Preview & Downloads")
-
-    st.markdown("---")
-    st.markdown("## 🧩 Custom Tactical Board")
-    st.caption("Build a custom board like Tacticalista: players, names, arrows, dashed runs, set-piece movements.")
-
-    with st.expander("Open Tactical Board Builder", expanded=False):
-        tb_title = st.text_input("Board title", "Custom Tactical Board")
-        tb_orientation = st.radio("Board orientation", ["Horizontal", "Vertical"], horizontal=True, key="tb_orientation")
-        tb_half = st.checkbox("Half pitch only", value=False, key="tb_half")
-        tb_grid = st.checkbox("Show zone grid", value=True, key="tb_grid")
-        tb_names = st.checkbox("Show player names", value=True, key="tb_names")
-        tb_numbers = st.checkbox("Show shirt numbers", value=True, key="tb_numbers")
-
-        cta, ctb, ctc, ctd = st.columns(4)
-        with cta:
-            tb_team_a = st.text_input("Team A label", "Team A")
-            tb_team_a_color = st.color_picker("Team A color", "#0074D9")
-        with ctb:
-            tb_team_b = st.text_input("Team B label", "Team B")
-            tb_team_b_color = st.color_picker("Team B color", "#FF0000")
-        with ctc:
-            tb_player_size = st.slider("Player circle size", 120, 900, 360, 20)
-            tb_name_size = st.slider("Name font", 6, 20, 10)
-        with ctd:
-            tb_number_size = st.slider("Number font", 6, 22, 10)
-            tb_watermark = st.text_input("Watermark", "TACTICALista")
-
-        default_players = pd.DataFrame([
-            {"team": "Team A", "number": 21, "name": "Taker", "x": 99, "y": 63},
-            {"team": "Team A", "number": 11, "name": "Runner", "x": 88, "y": 35},
-            {"team": "Team A", "number": 19, "name": "Block", "x": 84, "y": 39},
-            {"team": "Team B", "number": 1, "name": "Def", "x": 92, "y": 32},
-            {"team": "Team B", "number": 5, "name": "Def", "x": 89, "y": 30},
-        ])
-        default_actions = pd.DataFrame([
-            {"x": 99, "y": 63, "x2": 96, "y2": 31, "color": "#E00000", "style": "arrow", "width": 2.8, "curve": 0.25, "label": "delivery"},
-            {"x": 84, "y": 39, "x2": 86, "y2": 31, "color": "#000000", "style": "dashed", "width": 2.0, "curve": 0.00, "label": "run"},
-        ])
-
-        st.markdown("**Players** — use x 0→100 length, y 0→64 width")
-        tb_players = st.data_editor(default_players, num_rows="dynamic", use_container_width=True, key="tb_players")
-        st.markdown("**Actions / Arrows**")
-        tb_actions = st.data_editor(default_actions, num_rows="dynamic", use_container_width=True, key="tb_actions")
-
-        if st.button("Generate Tactical Board", use_container_width=True):
-            tb_fig = chart_tactical_board(
-                tb_players, tb_actions, theme_name=theme_name, style_overrides=chart_style,
-                title=tb_title, orientation=tb_orientation, half_pitch=tb_half, show_grid=tb_grid,
-                show_names=tb_names, show_numbers=tb_numbers, team_a_label=tb_team_a, team_b_label=tb_team_b,
-                team_a_color=tb_team_a_color, team_b_color=tb_team_b_color,
-                player_size=tb_player_size, name_size=tb_name_size, number_size=tb_number_size,
-                watermark=tb_watermark,
-            )
-            st.pyplot(tb_fig, use_container_width=True)
-            st.download_button(
-                "⬇️ Download Tactical Board PNG",
-                data=fig_to_png_bytes(tb_fig, dpi=chart_style["export_dpi"]),
-                file_name="custom_tactical_board.png",
-                mime="image/png",
-                key="download_tactical_board_png",
-            )
 
     if uploaded is None:
         render_placeholder(
