@@ -356,17 +356,61 @@ def _curve_rad(dtype, corner_label):
         if d == "outswing": return -0.15
     return 0.0
 
+def _row_text(row, cols):
+    vals = []
+    for c in cols:
+        if c in row.index and pd.notna(row.get(c)):
+            vals.append(str(row.get(c)).strip().lower())
+    return " ".join(vals)
+
+def _is_corner_row(row) -> bool:
+    txt = _row_text(row, ["set_piece_type", "set_piece", "restart_type", "event_type"])
+    return "corner" in txt or txt in {"ck"}
+
+def _is_free_kick_row(row) -> bool:
+    txt = _row_text(row, ["set_piece_type", "set_piece", "restart_type", "event_type"])
+    txt = txt.replace("-", "_").replace(" ", "_")
+    return "free_kick" in txt or txt in {"fk"}
+
+def _filter_corners(df):
+    if not len(df):
+        return df
+    mask = df.apply(_is_corner_row, axis=1)
+    return df[mask].copy() if mask.any() else df
+
+def _filter_free_kicks(df):
+    if not len(df):
+        return df
+    mask = df.apply(_is_free_kick_row, axis=1)
+    return df[mask].copy() if mask.any() else df.iloc[0:0].copy()
+
 def _prep(df, flip_y=False):
     dff = apply_flip_y(df, flip_y)
     dff = _auto_scale(dff)
     if "x" in dff.columns and "y" in dff.columns:
-        cd = dff.apply(lambda r: _corner_anchor(r.get("x"), r.get("y")), axis=1, result_type="expand")
-        dff["x_start_plot"] = cd[0]; dff["y_start_plot"] = cd[1]
-        dff["corner_label"] = cd[2]
-        dff["corner_side"]  = dff["corner_label"].astype(str).str.split("_").str[0]
+        dff["x_start_plot"] = pd.to_numeric(dff["x"], errors="coerce").astype(float)
+        dff["y_start_plot"] = pd.to_numeric(dff["y"], errors="coerce").astype(float)
+        dff["corner_label"] = "open_play_or_free_kick"
+        dff["corner_side"] = "unknown"
+
+        # IMPORTANT: only corners are snapped to the true corner flag.
+        # Free kicks must keep their real start coordinates (x/y).
+        corner_mask = dff.apply(_is_corner_row, axis=1)
+        if corner_mask.any():
+            cd = dff.loc[corner_mask].apply(
+                lambda r: _corner_anchor(r.get("x"), r.get("y")),
+                axis=1,
+                result_type="expand",
+            )
+            dff.loc[corner_mask, "x_start_plot"] = cd[0].values
+            dff.loc[corner_mask, "y_start_plot"] = cd[1].values
+            dff.loc[corner_mask, "corner_label"] = cd[2].values
+            dff.loc[corner_mask, "corner_side"] = dff.loc[corner_mask, "corner_label"].astype(str).str.split("_").str[0].values
     else:
-        dff["x_start_plot"] = dff.get("x"); dff["y_start_plot"] = dff.get("y")
-        dff["corner_label"] = "unknown";    dff["corner_side"]  = "unknown"
+        dff["x_start_plot"] = dff.get("x")
+        dff["y_start_plot"] = dff.get("y")
+        dff["corner_label"] = "unknown"
+        dff["corner_side"] = "unknown"
     return dff
 
 def _arrow(ax, x1, y1, x2, y2, color, s, rad=0.0, lm=1.0, am=1.0):
@@ -442,6 +486,7 @@ def _traj_chart(df, theme_name, flip_y, style_overrides, title, corner_side):
     vert = s.get("pitch_vertical", False)
     pitch = make_pitch(s, vert)
     dff   = _prep(df, flip_y)
+    dff   = _filter_corners(dff)
 
     if "side" in dff.columns:
         mask = dff["side"].astype(str).str.lower() == corner_side
@@ -511,17 +556,13 @@ def chart_attack_freekick_trajectories(df, theme_name, flip_y=False, style_overr
     dff   = _prep(df, flip_y)
 
     # ── filter: free kicks only ───────────────────────────────────────────────
-    for sp_col in ["set_piece_type", "set_piece", "Type"]:
-        if sp_col in dff.columns:
-            mask_fk = dff[sp_col].astype(str).str.lower().str.contains("free kick", na=False)
-            if mask_fk.any():
-                dff = dff[mask_fk].copy()
-                break
+    # Supports both "free kick" and normalized "free_kick" values.
+    dff = _filter_free_kicks(dff)
 
-    # filter for attacking type
-    for att_col in ["Type", "attack_type", "type"]:
+    # filter for attacking type if the file has an Attack/Defence column
+    for att_col in ["play_type", "Type", "type", "attack_type"]:
         if att_col in dff.columns:
-            mask_att = dff[att_col].astype(str).str.lower().str.strip() == "attack"
+            mask_att = dff[att_col].astype(str).str.lower().str.strip().isin(["attack", "attacking", "offense", "offence"])
             if mask_att.any():
                 dff = dff[mask_att].copy()
                 break
